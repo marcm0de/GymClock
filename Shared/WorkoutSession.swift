@@ -1,6 +1,35 @@
 import Foundation
 import SwiftData
 
+// MARK: - Workout Type
+
+enum WorkoutType: String, Codable, CaseIterable, Identifiable {
+    case weights = "Weights"
+    case cardio = "Cardio"
+    case mixed = "Mixed"
+    case other = "Other"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .weights: return "dumbbell.fill"
+        case .cardio: return "figure.run"
+        case .mixed: return "figure.mixed.cardio"
+        case .other: return "figure.cooldown"
+        }
+    }
+
+    var color: String {
+        switch self {
+        case .weights: return "blue"
+        case .cardio: return "orange"
+        case .mixed: return "purple"
+        case .other: return "gray"
+        }
+    }
+}
+
 @Model
 final class WorkoutSession {
     var id: UUID
@@ -9,6 +38,13 @@ final class WorkoutSession {
     var checkOutTime: Date?
     var isActive: Bool
     var notes: String
+    var workoutTypeRaw: String
+    var calories: Int
+
+    var workoutType: WorkoutType {
+        get { WorkoutType(rawValue: workoutTypeRaw) ?? .other }
+        set { workoutTypeRaw = newValue.rawValue }
+    }
 
     var duration: TimeInterval {
         let end = checkOutTime ?? Date()
@@ -36,13 +72,28 @@ final class WorkoutSession {
         return String(format: "%dm", minutes)
     }
 
+    /// Rough calorie estimate based on duration and workout type
+    var estimatedCalories: Int {
+        let minutes = duration / 60.0
+        let calPerMin: Double
+        switch workoutType {
+        case .weights: calPerMin = 5.0
+        case .cardio: calPerMin = 8.0
+        case .mixed: calPerMin = 6.5
+        case .other: calPerMin = 4.0
+        }
+        return Int(minutes * calPerMin)
+    }
+
     init(
         id: UUID = UUID(),
         gymName: String,
         checkInTime: Date = Date(),
         checkOutTime: Date? = nil,
         isActive: Bool = true,
-        notes: String = ""
+        notes: String = "",
+        workoutType: WorkoutType = .other,
+        calories: Int = 0
     ) {
         self.id = id
         self.gymName = gymName
@@ -50,10 +101,13 @@ final class WorkoutSession {
         self.checkOutTime = checkOutTime
         self.isActive = isActive
         self.notes = notes
+        self.workoutTypeRaw = workoutType.rawValue
+        self.calories = calories
     }
 
     func checkOut() {
         self.checkOutTime = Date()
         self.isActive = false
+        self.calories = estimatedCalories
     }
 }

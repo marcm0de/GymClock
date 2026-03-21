@@ -15,6 +15,12 @@ enum DateFormatters {
         return f
     }()
 
+    static let shortDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM d"
+        return f
+    }()
+
     static let fullFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateStyle = .medium

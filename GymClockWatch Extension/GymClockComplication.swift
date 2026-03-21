@@ -133,9 +133,78 @@ struct GymClockComplicationEntryView: View {
     }
 }
 
-// MARK: - Widget
+// MARK: - Quick Start Complication
+
+struct QuickStartProvider: TimelineProvider {
+    func placeholder(in context: Context) -> QuickStartEntry {
+        QuickStartEntry(date: Date())
+    }
+
+    func getSnapshot(in context: Context, completion: @escaping (QuickStartEntry) -> Void) {
+        completion(QuickStartEntry(date: Date()))
+    }
+
+    func getTimeline(in context: Context, completion: @escaping (Timeline<QuickStartEntry>) -> Void) {
+        let entry = QuickStartEntry(date: Date())
+        let timeline = Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(3600)))
+        completion(timeline)
+    }
+}
+
+struct QuickStartEntry: TimelineEntry {
+    let date: Date
+}
+
+struct QuickStartComplicationView: View {
+    var entry: QuickStartEntry
+    @Environment(\.widgetFamily) var family
+
+    var body: some View {
+        switch family {
+        case .accessoryCircular:
+            ZStack {
+                AccessoryWidgetBackground()
+                VStack(spacing: 2) {
+                    Image(systemName: "play.circle.fill")
+                        .font(.title3)
+                    Text("Start")
+                        .font(.system(.caption2, design: .rounded))
+                        .fontWeight(.bold)
+                }
+            }
+        case .accessoryRectangular:
+            HStack {
+                Image(systemName: "play.circle.fill")
+                    .font(.title2)
+                VStack(alignment: .leading) {
+                    Text("Quick Start")
+                        .font(.caption.bold())
+                    Text("Tap to begin session")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        case .accessoryInline:
+            HStack {
+                Image(systemName: "play.fill")
+                Text("Quick Start Workout")
+            }
+        default:
+            Image(systemName: "play.circle.fill")
+        }
+    }
+}
+
+// MARK: - Main Widget
 
 @main
+struct GymClockWidgetBundle: WidgetBundle {
+    var body: some Widget {
+        GymClockComplication()
+        QuickStartComplication()
+    }
+}
+
 struct GymClockComplication: Widget {
     let kind: String = "GymClockComplication"
 
@@ -151,6 +220,24 @@ struct GymClockComplication: Widget {
             .accessoryRectangular,
             .accessoryInline,
             .accessoryCorner
+        ])
+    }
+}
+
+struct QuickStartComplication: Widget {
+    let kind: String = "GymClockQuickStart"
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: QuickStartProvider()) { entry in
+            QuickStartComplicationView(entry: entry)
+                .containerBackground(.fill.tertiary, for: .widget)
+        }
+        .configurationDisplayName("Quick Start")
+        .description("Tap to immediately start a manual gym session.")
+        .supportedFamilies([
+            .accessoryCircular,
+            .accessoryRectangular,
+            .accessoryInline
         ])
     }
 }

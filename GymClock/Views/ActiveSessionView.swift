@@ -5,6 +5,9 @@ struct ActiveSessionView: View {
     @EnvironmentObject var sessionTracker: SessionTracker
     @Query(sort: \GymLocation.name) private var gyms: [GymLocation]
     @State private var selectedGym: GymLocation?
+    @State private var selectedWorkoutType: WorkoutType = .other
+    @State private var showNotesField = false
+    @State private var sessionNotes = ""
 
     var body: some View {
         NavigationStack {
@@ -23,7 +26,7 @@ struct ActiveSessionView: View {
     // MARK: - Active Session
 
     private var activeSessionContent: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: 24) {
             Spacer()
 
             // Gym Name
@@ -40,20 +43,84 @@ struct ActiveSessionView: View {
                 .foregroundStyle(.green)
                 .contentTransition(.numericText())
 
-            // Check-in time
+            // Workout Type Picker
+            HStack(spacing: 12) {
+                ForEach(WorkoutType.allCases) { type in
+                    Button(action: {
+                        selectedWorkoutType = type
+                        sessionTracker.activeSession?.workoutType = type
+                    }) {
+                        VStack(spacing: 4) {
+                            Image(systemName: type.icon)
+                                .font(.title3)
+                            Text(type.rawValue)
+                                .font(.caption2)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(
+                            selectedWorkoutType == type
+                                ? Color.green.opacity(0.2)
+                                : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 10)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(selectedWorkoutType == type ? Color.green : Color.gray.opacity(0.3), lineWidth: 1)
+                        )
+                    }
+                    .foregroundStyle(selectedWorkoutType == type ? .green : .secondary)
+                }
+            }
+
+            // Check-in time & estimated calories
             if let session = sessionTracker.activeSession {
+                VStack(spacing: 4) {
+                    HStack {
+                        Image(systemName: "clock")
+                        Text("Checked in at \(DateFormatters.timeFormatter.string(from: session.checkInTime))")
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                    HStack {
+                        Image(systemName: "flame.fill")
+                        Text("~\(session.estimatedCalories) cal burned")
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.orange)
+                }
+            }
+
+            // Notes toggle
+            Button(action: { showNotesField.toggle() }) {
                 HStack {
-                    Image(systemName: "clock")
-                    Text("Checked in at \(DateFormatters.timeFormatter.string(from: session.checkInTime))")
+                    Image(systemName: "note.text")
+                    Text(showNotesField ? "Hide Notes" : "Add Notes")
                 }
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.green)
+            }
+
+            if showNotesField {
+                TextField("What did you work on?", text: $sessionNotes, axis: .vertical)
+                    .textFieldStyle(.roundedBorder)
+                    .lineLimit(2...4)
+                    .onChange(of: sessionNotes) { _, newValue in
+                        sessionTracker.activeSession?.notes = newValue
+                    }
             }
 
             Spacer()
 
             // Check Out Button
-            Button(action: { sessionTracker.endSession() }) {
+            Button(action: {
+                sessionTracker.activeSession?.notes = sessionNotes
+                sessionTracker.activeSession?.workoutType = selectedWorkoutType
+                sessionTracker.endSession()
+                sessionNotes = ""
+                showNotesField = false
+            }) {
                 HStack {
                     Image(systemName: "xmark.circle.fill")
                     Text("Check Out")
@@ -80,7 +147,7 @@ struct ActiveSessionView: View {
     // MARK: - Idle State
 
     private var idleContent: some View {
-        VStack(spacing: 32) {
+        VStack(spacing: 24) {
             Spacer()
 
             Image(systemName: "figure.run.circle.fill")
@@ -97,6 +164,13 @@ struct ActiveSessionView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
+
+            // Motivational Quote
+            Text("💪 \"\(MotivationalQuotes.todaysQuote)\"")
+                .font(.footnote.italic())
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
 
             Spacer()
 

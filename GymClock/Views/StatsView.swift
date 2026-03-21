@@ -10,10 +10,13 @@ struct StatsView: View {
         order: .reverse
     ) private var sessions: [WorkoutSession]
 
+    @AppStorage("weeklyGoalDays") private var weeklyGoalDays: Int = 4
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
+                    weeklyGoalProgress
                     streakCards
                     weeklyChart
                     monthlyOverview
@@ -25,29 +28,71 @@ struct StatsView: View {
         }
     }
 
+    // MARK: - Weekly Goal Progress
+
+    private var weeklyGoalProgress: some View {
+        let thisWeekCount = sessionTracker.sessionsThisWeek(allSessions: sessions).count
+        let progress = min(Double(thisWeekCount) / Double(weeklyGoalDays), 1.0)
+        let goalMet = thisWeekCount >= weeklyGoalDays
+
+        return VStack(spacing: 12) {
+            HStack {
+                Image(systemName: goalMet ? "checkmark.seal.fill" : "target")
+                    .foregroundStyle(goalMet ? .green : .orange)
+                Text("Weekly Goal")
+                    .font(.headline)
+                Spacer()
+                Text("\(thisWeekCount)/\(weeklyGoalDays) days")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(goalMet ? .green : .primary)
+            }
+
+            ProgressView(value: progress)
+                .tint(goalMet ? .green : .orange)
+                .scaleEffect(y: 2)
+
+            if goalMet {
+                Text("🎉 Goal achieved this week!")
+                    .font(.caption)
+                    .foregroundStyle(.green)
+            } else {
+                let remaining = weeklyGoalDays - thisWeekCount
+                Text("\(remaining) more session\(remaining == 1 ? "" : "s") to hit your goal")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+
     // MARK: - Streak Cards
 
     private var streakCards: some View {
-        HStack(spacing: 16) {
+        let dayStreak = sessionTracker.currentStreak(allSessions: sessions)
+        let weekStreak = sessionTracker.weeklyStreak(allSessions: sessions)
+        let thisWeekCount = sessionTracker.sessionsThisWeek(allSessions: sessions).count
+
+        return HStack(spacing: 16) {
             StreakCard(
                 title: "Day Streak",
-                value: sessionTracker.currentStreak(allSessions: sessions),
+                value: dayStreak,
                 icon: "flame.fill",
-                color: .orange
+                color: dayStreak > 0 ? .orange : .gray
             )
 
             StreakCard(
                 title: "Week Streak",
-                value: sessionTracker.weeklyStreak(allSessions: sessions),
+                value: weekStreak,
                 icon: "star.fill",
-                color: .yellow
+                color: weekStreak > 0 ? .yellow : .gray
             )
 
             StreakCard(
                 title: "This Week",
-                value: sessionTracker.sessionsThisWeek(allSessions: sessions).count,
+                value: thisWeekCount,
                 icon: "calendar",
-                color: .green
+                color: thisWeekCount > 0 ? .green : .gray
             )
         }
     }
@@ -106,6 +151,7 @@ struct StatsView: View {
         let startOfMonth = calendar.dateInterval(of: .month, for: Date())?.start ?? Date()
         let monthSessions = sessions.filter { $0.checkInTime >= startOfMonth }
         let totalTime = monthSessions.reduce(0.0) { $0 + $1.duration }
+        let totalCalories = monthSessions.reduce(0) { $0 + $1.calories }
 
         return VStack(alignment: .leading, spacing: 12) {
             Text(DateFormatters.monthYearFormatter.string(from: Date()))
@@ -135,11 +181,10 @@ struct StatsView: View {
                 Divider()
 
                 VStack(alignment: .leading) {
-                    let avg = monthSessions.isEmpty ? 0 : totalTime / Double(monthSessions.count)
-                    Text(DateFormatters.formatDuration(avg))
+                    Text("\(totalCalories)")
                         .font(.largeTitle.bold())
-                        .foregroundStyle(.green)
-                    Text("Avg Session")
+                        .foregroundStyle(.orange)
+                    Text("Calories")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -160,7 +205,7 @@ struct StatsView: View {
                     HStack {
                         Image(systemName: "trophy.fill")
                             .foregroundStyle(.yellow)
-                        Text("Longest Session")
+                        Text("🏆 Personal Best — Longest Session")
                             .font(.headline)
                     }
 
@@ -171,6 +216,11 @@ struct StatsView: View {
                             Text(DateFormatters.dateFormatter.string(from: best.checkInTime))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                            if best.calories > 0 {
+                                Text("~\(best.calories) cal")
+                                    .font(.caption)
+                                    .foregroundStyle(.orange)
+                            }
                         }
 
                         Spacer()
@@ -208,6 +258,7 @@ struct StreakCard: View {
 
             Text("\(value)")
                 .font(.title.bold())
+                .foregroundStyle(value > 0 ? .primary : .secondary)
 
             Text(title)
                 .font(.caption2)

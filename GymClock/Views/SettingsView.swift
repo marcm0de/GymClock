@@ -11,9 +11,33 @@ struct SettingsView: View {
     @State private var showingDeleteAlert = false
     @State private var gymToDelete: GymLocation?
 
+    @AppStorage("weeklyGoalDays") private var weeklyGoalDays: Int = 4
+
     var body: some View {
         NavigationStack {
             List {
+                // Weekly Goal
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Image(systemName: "target")
+                                .foregroundStyle(.green)
+                            Text("Weekly Goal")
+                                .font(.headline)
+                            Spacer()
+                            Text("\(weeklyGoalDays) days/week")
+                                .foregroundStyle(.green)
+                                .font(.subheadline.bold())
+                        }
+
+                        Stepper("Days per week: \(weeklyGoalDays)", value: $weeklyGoalDays, in: 1...7)
+                    }
+                } header: {
+                    Text("Goals")
+                } footer: {
+                    Text("Set how many days per week you want to work out. Track your progress in Stats.")
+                }
+
                 // Gym Locations
                 Section {
                     ForEach(gyms) { gym in
@@ -62,7 +86,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Version")
                         Spacer()
-                        Text("1.0.0")
+                        Text("1.1.0")
                             .foregroundStyle(.secondary)
                     }
 

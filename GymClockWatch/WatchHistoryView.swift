@@ -9,6 +9,8 @@ struct WatchHistoryView: View {
         order: .reverse
     ) private var sessions: [WorkoutSession]
 
+    @State private var crownValue: Double = 0.0
+
     var body: some View {
         NavigationStack {
             if sessions.isEmpty {
@@ -21,34 +23,62 @@ struct WatchHistoryView: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                List {
-                    // Streak
-                    HStack {
-                        Image(systemName: "flame.fill")
-                            .foregroundStyle(.orange)
-                        Text("\(sessionTracker.currentStreak(allSessions: sessions)) day streak")
-                            .font(.caption)
-                    }
-                    .listRowBackground(Color.clear)
+                ScrollView {
+                    LazyVStack(spacing: 6) {
+                        // Streak with color coding
+                        let streak = sessionTracker.currentStreak(allSessions: sessions)
+                        HStack {
+                            Image(systemName: "flame.fill")
+                                .foregroundStyle(streak > 0 ? .orange : .gray)
+                            Text("\(streak) day streak")
+                                .font(.caption)
+                                .foregroundStyle(streak > 0 ? .primary : .secondary)
+                        }
+                        .padding(.bottom, 4)
 
-                    // Recent sessions
-                    ForEach(sessions.prefix(10)) { session in
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack {
-                                Text(session.gymName)
-                                    .font(.caption.bold())
-                                Spacer()
-                                Text(session.shortDuration)
-                                    .font(.caption.bold())
-                                    .foregroundStyle(.green)
+                        // Personal best ID
+                        let bestId = sessions.max(by: { $0.duration < $1.duration })?.id
+
+                        // Recent sessions
+                        ForEach(sessions.prefix(15)) { session in
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack {
+                                    Text(session.gymName)
+                                        .font(.caption.bold())
+
+                                    if session.id == bestId {
+                                        Text("🏆")
+                                            .font(.caption2)
+                                    }
+
+                                    Spacer()
+
+                                    Text(session.shortDuration)
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.green)
+                                }
+
+                                HStack {
+                                    Text(DateFormatters.fullFormatter.string(from: session.checkInTime))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+
+                                    Spacer()
+
+                                    if session.calories > 0 {
+                                        Text("\(session.calories) cal")
+                                            .font(.caption2)
+                                            .foregroundStyle(.orange)
+                                    }
+                                }
                             }
-
-                            Text(DateFormatters.fullFormatter.string(from: session.checkInTime))
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                            .padding(.vertical, 2)
                         }
                     }
+                    .padding(.horizontal, 4)
                 }
+                .focusable()
+                .digitalCrownRotation($crownValue, from: 0, through: Double(sessions.count), sensitivity: .medium)
                 .navigationTitle("History")
             }
         }
