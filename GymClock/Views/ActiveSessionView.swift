@@ -3,11 +3,19 @@ import SwiftData
 
 struct ActiveSessionView: View {
     @EnvironmentObject var sessionTracker: SessionTracker
+    @EnvironmentObject var achievementManager: AchievementManager
     @Query(sort: \GymLocation.name) private var gyms: [GymLocation]
+    @Query(
+        filter: #Predicate<WorkoutSession> { !$0.isActive },
+        sort: \WorkoutSession.checkInTime,
+        order: .reverse
+    ) private var completedSessions: [WorkoutSession]
     @State private var selectedGym: GymLocation?
     @State private var selectedWorkoutType: WorkoutType = .other
     @State private var showNotesField = false
     @State private var sessionNotes = ""
+    @State private var showShareSheet = false
+    @State private var lastShareText = ""
 
     var body: some View {
         NavigationStack {
@@ -92,7 +100,7 @@ struct ActiveSessionView: View {
                 }
             }
 
-            // Notes toggle
+            // Notes with emoji shortcuts
             Button(action: { showNotesField.toggle() }) {
                 HStack {
                     Image(systemName: "note.text")
@@ -103,23 +111,57 @@ struct ActiveSessionView: View {
             }
 
             if showNotesField {
-                TextField("What did you work on?", text: $sessionNotes, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(2...4)
-                    .onChange(of: sessionNotes) { _, newValue in
-                        sessionTracker.activeSession?.notes = newValue
+                VStack(spacing: 8) {
+                    // Emoji quick-add bar
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(["💪", "🏋️", "🔥", "😤", "🎯", "⚡", "🦵", "💥", "🏃", "🧘"], id: \.self) { emoji in
+                                Button(emoji) {
+                                    sessionNotes += emoji
+                                    sessionTracker.activeSession?.notes = sessionNotes
+                                }
+                                .font(.title3)
+                                .padding(6)
+                                .background(Color.gray.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+                            }
+                        }
                     }
+                    
+                    TextField("What did you work on?", text: $sessionNotes, axis: .vertical)
+                        .textFieldStyle(.roundedBorder)
+                        .lineLimit(2...4)
+                        .onChange(of: sessionNotes) { _, newValue in
+                            sessionTracker.activeSession?.notes = newValue
+                        }
+                }
             }
 
             Spacer()
 
             // Check Out Button
             Button(action: {
-                sessionTracker.activeSession?.notes = sessionNotes
-                sessionTracker.activeSession?.workoutType = selectedWorkoutType
+                guard let session = sessionTracker.activeSession else { return }
+                session.notes = sessionNotes
+                session.workoutType = selectedWorkoutType
+                
+                let streak = sessionTracker.currentStreak(allSessions: completedSessions)
+                lastShareText = ShareManager.generateShareText(
+                    session: session,
+                    streak: streak,
+                    totalWorkouts: completedSessions.count + 1
+                )
+                
                 sessionTracker.endSession()
+                
+                // Check achievements after checkout
+                achievementManager.checkAchievements(
+                    sessions: completedSessions,
+                    currentStreak: streak
+                )
+                
                 sessionNotes = ""
                 showNotesField = false
+                showShareSheet = true
             }) {
                 HStack {
                     Image(systemName: "xmark.circle.fill")
@@ -130,6 +172,19 @@ struct ActiveSessionView: View {
                 .frame(maxWidth: .infinity)
                 .padding()
                 .background(.red, in: RoundedRectangle(cornerRadius: 16))
+            }
+
+            // Share after checkout
+            if showShareSheet {
+                ShareLink(item: lastShareText) {
+                    HStack {
+                        Image(systemName: "square.and.arrow.up")
+                        Text("Share Workout")
+                    }
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.green)
+                }
+                .padding(.bottom, 4)
             }
 
             // Status indicator
@@ -172,6 +227,25 @@ struct ActiveSessionView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal)
 
+            // Share last workout if available
+            if let lastSession = completedSessions.first {
+                let streak = sessionTracker.currentStreak(allSessions: completedSessions)
+                ShareLink(
+                    item: ShareManager.generateShareText(
+                        session: lastSession,
+                        streak: streak,
+                        totalWorkouts: completedSessions.count
+                    )
+                ) {
+                    HStack {
+                        Image(systemName: "square.and.arrow.up")
+                        Text("Share Last Workout")
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.green)
+                }
+            }
+
             Spacer()
 
             // Manual Check In
@@ -179,6 +253,7 @@ struct ActiveSessionView: View {
                 if let gym = gyms.first {
                     Button(action: {
                         sessionTracker.startSession(gymName: gym.name)
+                        showShareSheet = false
                     }) {
                         HStack {
                             Image(systemName: "play.circle.fill")
@@ -197,6 +272,7 @@ struct ActiveSessionView: View {
                         ForEach(gyms) { gym in
                             Button(gym.name) {
                                 sessionTracker.startSession(gymName: gym.name)
+                                showShareSheet = false
                             }
                         }
                     } label: {
@@ -223,5 +299,6 @@ struct ActiveSessionView: View {
 #Preview {
     ActiveSessionView()
         .environmentObject(SessionTracker())
+        .environmentObject(AchievementManager())
         .modelContainer(for: [WorkoutSession.self, GymLocation.self], inMemory: true)
 }

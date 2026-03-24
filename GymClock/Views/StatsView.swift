@@ -4,6 +4,7 @@ import Charts
 
 struct StatsView: View {
     @EnvironmentObject var sessionTracker: SessionTracker
+    @EnvironmentObject var achievementManager: AchievementManager
     @Query(
         filter: #Predicate<WorkoutSession> { !$0.isActive },
         sort: \WorkoutSession.checkInTime,
@@ -18,6 +19,7 @@ struct StatsView: View {
                 VStack(spacing: 20) {
                     weeklyGoalProgress
                     streakCards
+                    achievementsSummary
                     weeklyChart
                     monthlyOverview
                     bestSessionCard
@@ -26,6 +28,49 @@ struct StatsView: View {
             }
             .navigationTitle("Stats")
         }
+    }
+    
+    // MARK: - Achievements Summary
+    
+    private var achievementsSummary: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "trophy.fill")
+                    .foregroundStyle(.yellow)
+                Text("Achievements")
+                    .font(.headline)
+                Spacer()
+                Text("\(achievementManager.unlockedCount)/\(achievementManager.totalCount)")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.green)
+            }
+            
+            // Show recent unlocked achievements
+            let unlocked = achievementManager.achievements.filter(\.isUnlocked)
+            if unlocked.isEmpty {
+                Text("Complete workouts to unlock achievements!")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(unlocked) { achievement in
+                            VStack(spacing: 4) {
+                                Text(achievement.icon)
+                                    .font(.title2)
+                                Text(achievement.title)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(8)
+                            .background(Color.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: - Weekly Goal Progress
@@ -273,5 +318,6 @@ struct StreakCard: View {
 #Preview {
     StatsView()
         .environmentObject(SessionTracker())
+        .environmentObject(AchievementManager())
         .modelContainer(for: [WorkoutSession.self, GymLocation.self], inMemory: true)
 }

@@ -2,35 +2,54 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var sessionTracker: SessionTracker
+    @EnvironmentObject var achievementManager: AchievementManager
 
     var body: some View {
-        TabView {
-            ActiveSessionView()
-                .tabItem {
-                    Label("Session", systemImage: "timer")
-                }
+        ZStack {
+            TabView {
+                ActiveSessionView()
+                    .tabItem {
+                        Label("Session", systemImage: "timer")
+                    }
 
-            HistoryView()
-                .tabItem {
-                    Label("History", systemImage: "clock.arrow.circlepath")
-                }
+                HistoryView()
+                    .tabItem {
+                        Label("History", systemImage: "clock.arrow.circlepath")
+                    }
 
-            StatsView()
-                .tabItem {
-                    Label("Stats", systemImage: "chart.bar.fill")
-                }
+                StatsView()
+                    .tabItem {
+                        Label("Stats", systemImage: "chart.bar.fill")
+                    }
 
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gear")
-                }
+                AchievementsView()
+                    .tabItem {
+                        Label("Achievements", systemImage: "trophy.fill")
+                    }
+
+                SettingsView()
+                    .tabItem {
+                        Label("Settings", systemImage: "gear")
+                    }
+            }
+            .tint(.green)
+
+            // Achievement celebration overlay
+            if achievementManager.showCelebration, let achievement = achievementManager.newlyUnlocked {
+                AchievementCelebrationOverlay(
+                    achievement: achievement,
+                    isShowing: $achievementManager.showCelebration
+                )
+                .transition(.opacity)
+                .zIndex(100)
+            }
         }
-        .tint(.green)
     }
 }
 
 #Preview {
     ContentView()
         .environmentObject(SessionTracker())
+        .environmentObject(AchievementManager())
         .environmentObject(GeofenceManager.shared)
 }

@@ -9,6 +9,7 @@ struct HistoryView: View {
     ) private var sessions: [WorkoutSession]
 
     @State private var selectedPeriod: TimePeriod = .week
+    @State private var searchText = ""
     @Environment(\.modelContext) private var modelContext
 
     enum TimePeriod: String, CaseIterable {
@@ -51,7 +52,8 @@ struct HistoryView: View {
                                 ForEach(weekGroup.sessions) { session in
                                     SessionRow(
                                         session: session,
-                                        isPersonalBest: session.id == longestSessionId
+                                        isPersonalBest: session.id == longestSessionId,
+                                        showFullNotes: true
                                     )
                                 }
                                 .onDelete { indexSet in
@@ -66,6 +68,7 @@ struct HistoryView: View {
                 }
             }
             .navigationTitle("History")
+            .searchable(text: $searchText, prompt: "Search notes, gyms...")
         }
     }
 
@@ -99,16 +102,29 @@ struct HistoryView: View {
         let calendar = Calendar.current
         let now = Date()
 
+        var result: [WorkoutSession]
         switch selectedPeriod {
         case .week:
             let start = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? now
-            return sessions.filter { $0.checkInTime >= start }
+            result = sessions.filter { $0.checkInTime >= start }
         case .month:
             let start = calendar.dateInterval(of: .month, for: now)?.start ?? now
-            return sessions.filter { $0.checkInTime >= start }
+            result = sessions.filter { $0.checkInTime >= start }
         case .all:
-            return sessions
+            result = sessions
         }
+        
+        // Apply search filter
+        if !searchText.isEmpty {
+            let query = searchText.lowercased()
+            result = result.filter { session in
+                session.notes.lowercased().contains(query) ||
+                session.gymName.lowercased().contains(query) ||
+                session.workoutType.rawValue.lowercased().contains(query)
+            }
+        }
+        
+        return result
     }
 
     // MARK: - Weekly Grouping
@@ -193,60 +209,68 @@ struct WeeklySummaryRow: View {
 struct SessionRow: View {
     let session: WorkoutSession
     var isPersonalBest: Bool = false
+    var showFullNotes: Bool = false
 
     var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Text(session.gymName)
-                        .font(.headline)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(session.gymName)
+                            .font(.headline)
 
-                    if let type = WorkoutType(rawValue: session.workoutTypeRaw) {
-                        Image(systemName: type.icon)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        if let type = WorkoutType(rawValue: session.workoutTypeRaw) {
+                            Image(systemName: type.icon)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if isPersonalBest {
+                            Text("🏆 PB")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.yellow)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(.yellow.opacity(0.15), in: Capsule())
+                        }
                     }
 
-                    if isPersonalBest {
-                        Text("🏆 PB")
-                            .font(.caption2.bold())
-                            .foregroundStyle(.yellow)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(.yellow.opacity(0.15), in: Capsule())
+                    HStack(spacing: 4) {
+                        Text(DateFormatters.timeFormatter.string(from: session.checkInTime))
+                        if let checkout = session.checkOutTime {
+                            Text("–")
+                            Text(DateFormatters.timeFormatter.string(from: checkout))
+                        }
                     }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
 
-                HStack(spacing: 4) {
-                    Text(DateFormatters.timeFormatter.string(from: session.checkInTime))
-                    if let checkout = session.checkOutTime {
-                        Text("–")
-                        Text(DateFormatters.timeFormatter.string(from: checkout))
-                    }
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Spacer()
 
-                if !session.notes.isEmpty {
-                    Text(session.notes)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(session.shortDuration)
+                        .font(.title3.bold())
+                        .foregroundStyle(.green)
+
+                    if session.calories > 0 {
+                        Text("\(session.calories) cal")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
                 }
             }
-
-            Spacer()
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(session.shortDuration)
-                    .font(.title3.bold())
-                    .foregroundStyle(.green)
-
-                if session.calories > 0 {
-                    Text("\(session.calories) cal")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                }
+            
+            // Show notes prominently
+            if !session.notes.isEmpty {
+                Text(session.notes)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(showFullNotes ? 5 : 1)
+                    .padding(.top, 2)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.gray.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
         }
         .padding(.vertical, 4)

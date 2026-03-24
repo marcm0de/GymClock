@@ -4,6 +4,7 @@ import SwiftData
 @main
 struct GymClockApp: App {
     @StateObject private var sessionTracker = SessionTracker()
+    @StateObject private var achievementManager = AchievementManager()
     @ObservedObject private var geofenceManager = GeofenceManager.shared
 
     var sharedModelContainer: ModelContainer = {
@@ -28,6 +29,7 @@ struct GymClockApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(sessionTracker)
+                .environmentObject(achievementManager)
                 .environmentObject(geofenceManager)
                 .onAppear {
                     sessionTracker.configure(with: sharedModelContainer.mainContext)
