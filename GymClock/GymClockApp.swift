@@ -4,7 +4,7 @@ import SwiftData
 @main
 struct GymClockApp: App {
     @StateObject private var sessionTracker = SessionTracker()
-    @StateObject private var geofenceManager = GeofenceManager.shared
+    @ObservedObject private var geofenceManager = GeofenceManager.shared
 
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([

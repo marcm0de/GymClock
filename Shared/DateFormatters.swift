@@ -17,7 +17,7 @@ enum DateFormatters {
 
     static let shortDateFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "MMM d"
+        f.setLocalizedDateFormatFromTemplate("MMM d")
         return f
     }()
 
@@ -30,19 +30,19 @@ enum DateFormatters {
 
     static let dayOfWeekFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "EEEE"
+        f.setLocalizedDateFormatFromTemplate("EEEE")
         return f
     }()
 
     static let shortDayFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "EEE"
+        f.setLocalizedDateFormatFromTemplate("EEE")
         return f
     }()
 
     static let monthYearFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "MMMM yyyy"
+        f.setLocalizedDateFormatFromTemplate("MMMM yyyy")
         return f
     }()
 

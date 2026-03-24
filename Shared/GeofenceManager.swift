@@ -37,6 +37,9 @@ final class GeofenceManager: NSObject, ObservableObject, CLLocationManagerDelega
 
     // MARK: - Geofencing
 
+    /// Maximum number of regions iOS allows per app
+    static let maxMonitoredRegions = 20
+
     func startMonitoring(locations: [GymLocation]) {
         guard isAuthorized else {
             requestAuthorization()
@@ -45,10 +48,16 @@ final class GeofenceManager: NSObject, ObservableObject, CLLocationManagerDelega
 
         stopAllMonitoring()
 
-        for location in locations {
+        // iOS limits region monitoring to 20 regions per app
+        let locationsToMonitor = Array(locations.prefix(Self.maxMonitoredRegions))
+        if locations.count > Self.maxMonitoredRegions {
+            print("Warning: Only monitoring first \(Self.maxMonitoredRegions) gym locations (iOS limit). \(locations.count - Self.maxMonitoredRegions) locations skipped.")
+        }
+
+        for location in locationsToMonitor {
             let region = CLCircularRegion(
                 center: location.coordinate,
-                radius: location.radius,
+                radius: min(location.radius, locationManager.maximumRegionMonitoringDistance),
                 identifier: location.id.uuidString
             )
             region.notifyOnEntry = true
@@ -78,23 +87,29 @@ final class GeofenceManager: NSObject, ObservableObject, CLLocationManagerDelega
     // MARK: - CLLocationManagerDelegate
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
-        authorizationStatus = manager.authorizationStatus
+        Task { @MainActor in
+            self.authorizationStatus = manager.authorizationStatus
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
         guard let circularRegion = region as? CLCircularRegion else { return }
-        lastEnteredRegion = circularRegion.identifier
+        Task { @MainActor in
+            self.lastEnteredRegion = circularRegion.identifier
+        }
         onEnterGym?(circularRegion.identifier)
     }
 
     func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
         guard let circularRegion = region as? CLCircularRegion else { return }
-        lastExitedRegion = circularRegion.identifier
+        Task { @MainActor in
+            self.lastExitedRegion = circularRegion.identifier
+        }
         onExitGym?(circularRegion.identifier)
     }
 
     func locationManager(_ manager: CLLocationManager, monitoringDidFailFor region: CLRegion?, withError error: Error) {
-        print("Geofence monitoring failed: \(error.localizedDescription)")
+        print("Geofence monitoring failed for region \(region?.identifier ?? "unknown"): \(error.localizedDescription)")
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {

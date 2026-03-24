@@ -41,6 +41,8 @@ final class SessionTracker: ObservableObject {
         guard let session = activeSession else { return }
 
         session.checkOut()
+        let finalDuration = session.duration
+        let finalCalories = session.calories
         activeSession = nil
         isTracking = false
         elapsedTime = 0
@@ -48,7 +50,7 @@ final class SessionTracker: ObservableObject {
         try? modelContext?.save()
 
         stopTimer()
-        endHealthKitWorkout(duration: session.duration)
+        endHealthKitWorkout(duration: finalDuration, calories: finalCalories)
     }
 
     func manualCheckIn(gymName: String) {
@@ -135,7 +137,11 @@ final class SessionTracker: ObservableObject {
         guard HKHealthStore.isHealthDataAvailable() else { return }
 
         let workoutType = HKObjectType.workoutType()
-        healthStore.requestAuthorization(toShare: [workoutType], read: [workoutType]) { success, error in
+        let activeEnergy = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!
+        let typesToShare: Set<HKSampleType> = [workoutType, activeEnergy]
+        let typesToRead: Set<HKObjectType> = [workoutType, activeEnergy]
+
+        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
             if let error = error {
                 print("HealthKit authorization failed: \(error.localizedDescription)")
             }
@@ -147,15 +153,22 @@ final class SessionTracker: ObservableObject {
         // This is a placeholder for iOS-side tracking
     }
 
-    private func endHealthKitWorkout(duration: TimeInterval) {
+    private func endHealthKitWorkout(duration: TimeInterval, calories: Int = 0) {
         guard HKHealthStore.isHealthDataAvailable() else { return }
 
+        let endDate = Date()
+        let startDate = endDate.addingTimeInterval(-duration)
+
+        let energyBurned: HKQuantity? = calories > 0
+            ? HKQuantity(unit: .kilocalorie(), doubleValue: Double(calories))
+            : nil
+
         let workout = HKWorkout(
-            activityType: .other,
-            start: Date().addingTimeInterval(-duration),
-            end: Date(),
+            activityType: .traditionalStrengthTraining,
+            start: startDate,
+            end: endDate,
             duration: duration,
-            totalEnergyBurned: nil,
+            totalEnergyBurned: energyBurned,
             totalDistance: nil,
             metadata: [
                 "GymClock": true,
