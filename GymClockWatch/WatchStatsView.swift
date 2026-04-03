@@ -186,7 +186,7 @@ struct WatchStatsView: View {
                 .frame(width: 1, height: 24)
             
             VStack(spacing: 2) {
-                let totalCal = monthSessions.reduce(0) { $0 + $1.calories }
+                let totalCal = monthSessions.reduce(0) { $0 + ($1.calories > 0 ? $1.calories : $1.estimatedCalories) }
                 Text("\(totalCal)")
                     .font(.system(.caption, design: .rounded).bold())
                     .foregroundStyle(.orange)

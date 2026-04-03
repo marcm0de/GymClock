@@ -32,7 +32,7 @@ struct WatchHistoryView: View {
     private var weeklySummary: (sessions: Int, totalTime: TimeInterval, totalCalories: Int) {
         let weekSessions = sessionTracker.sessionsThisWeek(allSessions: sessions)
         let totalTime = weekSessions.reduce(0) { $0 + $1.duration }
-        let totalCalories = weekSessions.reduce(0) { $0 + $1.calories }
+        let totalCalories = weekSessions.reduce(0) { $0 + ($1.calories > 0 ? $1.calories : $1.estimatedCalories) }
         return (weekSessions.count, totalTime, totalCalories)
     }
     
@@ -204,11 +204,12 @@ struct WatchHistoryView: View {
                 
                 Spacer()
                 
-                if session.calories > 0 {
+                let effectiveCal = session.calories > 0 ? session.calories : session.estimatedCalories
+                if effectiveCal > 0 {
                     HStack(spacing: 2) {
                         Image(systemName: "flame.fill")
                             .font(.system(size: 8))
-                        Text("\(session.calories) cal")
+                        Text("~\(effectiveCal) cal")
                             .font(.system(size: 9))
                     }
                     .foregroundStyle(.orange)

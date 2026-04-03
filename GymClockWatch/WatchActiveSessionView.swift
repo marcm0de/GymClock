@@ -191,38 +191,40 @@ struct WatchActiveSessionView: View {
                 }
                 
                 // Start button
-                if let gym = gyms.first {
-                    Button(action: {
-                        HapticManager.shared.workoutStarted()
-                        sessionTracker.startSession(gymName: gym.name)
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "play.circle.fill")
-                                .font(.body)
-                            Text("Start Workout")
-                                .font(.caption.bold())
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                Button(action: {
+                    HapticManager.shared.workoutStarted()
+                    let gymName = gyms.first?.name ?? "Quick Session"
+                    sessionTracker.startSession(gymName: gymName)
+                    // Set selected workout type
+                    sessionTracker.activeSession?.workoutType = currentWorkoutType
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "play.circle.fill")
+                            .font(.body)
+                        Text(gyms.first != nil ? "Start Workout" : "Quick Start")
+                            .font(.caption.bold())
                     }
-                    .tint(.green)
-                    .clipShape(Capsule())
-                } else {
-                    Button(action: {
-                        HapticManager.shared.workoutStarted()
-                        sessionTracker.startSession(gymName: "Quick Session")
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "play.circle.fill")
-                                .font(.body)
-                            Text("Quick Start")
-                                .font(.caption.bold())
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                .tint(.green)
+                .clipShape(Capsule())
+                
+                // Show gym selector if multiple gyms
+                if gyms.count > 1 {
+                    Menu {
+                        ForEach(gyms) { gym in
+                            Button(gym.name) {
+                                HapticManager.shared.workoutStarted()
+                                sessionTracker.startSession(gymName: gym.name)
+                                sessionTracker.activeSession?.workoutType = currentWorkoutType
+                            }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                    } label: {
+                        Text("Other gyms")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
                     }
-                    .tint(.green)
-                    .clipShape(Capsule())
                 }
                 
                 // Motivational quote

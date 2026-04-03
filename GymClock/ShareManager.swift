@@ -15,7 +15,7 @@ struct ShareManager {
         
         var text = "🏋️ Just finished a \(durationMinutes)min \(workoutType) session"
         
-        if !gymName.isEmpty {
+        if !gymName.isEmpty && gymName != "Quick Session" {
             text += " at \(gymName)!"
         } else {
             text += "!"
@@ -28,24 +28,34 @@ struct ShareManager {
         }
         
         if calories > 0 {
-            stats.append("\(calories) cal burned")
+            stats.append("~\(calories) cal burned")
         }
         
         if totalWorkouts > 0 && totalWorkouts % 10 == 0 {
             stats.append("🎯 \(totalWorkouts) total workouts")
+        } else if totalWorkouts == 1 {
+            stats.append("🎯 First workout!")
         }
         
         if !stats.isEmpty {
-            text += " " + stats.joined(separator: " | ")
+            text += "\n" + stats.joined(separator: " | ")
         }
         
-        text += " | GymClock"
+        text += "\n\n#GymClock #Fitness"
         
         return text
     }
     
     /// Generate a share text for an achievement
     static func generateAchievementShareText(achievement: Achievement) -> String {
-        return "🏆 Just unlocked \"\(achievement.title)\" on GymClock! \(achievement.icon) \(achievement.description) #GymClock #Fitness"
+        let rarityLabel: String
+        switch achievement.rarity {
+        case .common: rarityLabel = ""
+        case .rare: rarityLabel = "🔵 Rare "
+        case .epic: rarityLabel = "🟣 Epic "
+        case .legendary: rarityLabel = "🟠 Legendary "
+        }
+        
+        return "🏆 Just unlocked \(rarityLabel)\"\(achievement.title)\" on GymClock! \(achievement.icon)\n\(achievement.description)\n\n#GymClock #Fitness #Achievement"
     }
 }

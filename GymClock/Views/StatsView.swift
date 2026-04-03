@@ -16,18 +16,34 @@ struct StatsView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 20) {
-                    weeklyGoalProgress
-                    streakCards
-                    achievementsSummary
-                    weeklyChart
-                    monthlyOverview
-                    bestSessionCard
+                if sessions.isEmpty {
+                    emptyState
+                } else {
+                    VStack(spacing: 20) {
+                        weeklyGoalProgress
+                        streakCards
+                        achievementsSummary
+                        weeklyChart
+                        workoutTypeBreakdown
+                        monthlyOverview
+                        allTimeStats
+                        bestSessionCard
+                    }
+                    .padding()
                 }
-                .padding()
             }
             .navigationTitle("Stats")
         }
+    }
+    
+    // MARK: - Empty State
+    
+    private var emptyState: some View {
+        ContentUnavailableView(
+            "No Stats Yet",
+            systemImage: "chart.bar",
+            description: Text("Complete your first workout to see stats here")
+        )
     }
     
     // MARK: - Achievements Summary
@@ -54,7 +70,7 @@ struct StatsView: View {
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
-                        ForEach(unlocked) { achievement in
+                        ForEach(unlocked.sorted(by: { ($0.unlockedDate ?? .distantPast) > ($1.unlockedDate ?? .distantPast) }).prefix(8)) { achievement in
                             VStack(spacing: 4) {
                                 Text(achievement.icon)
                                     .font(.title2)
@@ -63,7 +79,7 @@ struct StatsView: View {
                                     .foregroundStyle(.secondary)
                             }
                             .padding(8)
-                            .background(Color.green.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
+                            .background(achievement.rarity.color.opacity(0.1), in: RoundedRectangle(cornerRadius: 10))
                         }
                     }
                 }
@@ -77,7 +93,7 @@ struct StatsView: View {
 
     private var weeklyGoalProgress: some View {
         let thisWeekCount = sessionTracker.sessionsThisWeek(allSessions: sessions).count
-        let progress = min(Double(thisWeekCount) / Double(weeklyGoalDays), 1.0)
+        let progress = weeklyGoalDays > 0 ? min(Double(thisWeekCount) / Double(weeklyGoalDays), 1.0) : 0
         let goalMet = thisWeekCount >= weeklyGoalDays
 
         return VStack(spacing: 12) {
@@ -101,7 +117,7 @@ struct StatsView: View {
                     .font(.caption)
                     .foregroundStyle(.green)
             } else {
-                let remaining = weeklyGoalDays - thisWeekCount
+                let remaining = max(0, weeklyGoalDays - thisWeekCount)
                 Text("\(remaining) more session\(remaining == 1 ? "" : "s") to hit your goal")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -151,7 +167,7 @@ struct StatsView: View {
 
             let data = weeklyChartData
 
-            if data.isEmpty {
+            if data.allSatisfy({ $0.minutes == 0 }) {
                 Text("No sessions this week")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 200)
@@ -188,6 +204,66 @@ struct StatsView: View {
             )
         }
     }
+    
+    // MARK: - Workout Type Breakdown
+    
+    private var workoutTypeBreakdown: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Workout Types")
+                .font(.headline)
+            
+            let typeCounts = Dictionary(grouping: sessions) { $0.workoutType }
+                .mapValues(\.count)
+                .sorted { $0.value > $1.value }
+            
+            if typeCounts.isEmpty {
+                Text("No data yet")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(typeCounts, id: \.key) { type, count in
+                    HStack(spacing: 12) {
+                        Image(systemName: type.icon)
+                            .font(.title3)
+                            .foregroundStyle(typeColor(type))
+                            .frame(width: 28)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(type.rawValue)
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                Text("\(count)")
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(typeColor(type))
+                            }
+                            
+                            let total = sessions.count
+                            let fraction = total > 0 ? Double(count) / Double(total) : 0
+                            
+                            ProgressView(value: fraction)
+                                .tint(typeColor(type))
+                            
+                            Text("\(Int(fraction * 100))% of workouts")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+    
+    private func typeColor(_ type: WorkoutType) -> Color {
+        switch type {
+        case .weights: return .blue
+        case .cardio: return .orange
+        case .mixed: return .purple
+        case .other: return .gray
+        }
+    }
 
     // MARK: - Monthly Overview
 
@@ -196,13 +272,14 @@ struct StatsView: View {
         let startOfMonth = calendar.dateInterval(of: .month, for: Date())?.start ?? Date()
         let monthSessions = sessions.filter { $0.checkInTime >= startOfMonth }
         let totalTime = monthSessions.reduce(0.0) { $0 + $1.duration }
-        let totalCalories = monthSessions.reduce(0) { $0 + $1.calories }
+        let totalCalories = monthSessions.reduce(0) { $0 + effectiveCalories(for: $1) }
+        let avgTime = monthSessions.isEmpty ? 0.0 : totalTime / Double(monthSessions.count)
 
         return VStack(alignment: .leading, spacing: 12) {
             Text(DateFormatters.monthYearFormatter.string(from: Date()))
                 .font(.headline)
 
-            HStack(spacing: 20) {
+            HStack(spacing: 12) {
                 VStack(alignment: .leading) {
                     Text("\(monthSessions.count)")
                         .font(.largeTitle.bold())
@@ -216,9 +293,22 @@ struct StatsView: View {
 
                 VStack(alignment: .leading) {
                     Text(DateFormatters.formatDuration(totalTime))
-                        .font(.largeTitle.bold())
+                        .font(.title2.bold())
                         .foregroundStyle(.green)
+                        .minimumScaleFactor(0.7)
                     Text("Total Time")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Divider()
+                
+                VStack(alignment: .leading) {
+                    Text(DateFormatters.formatDuration(avgTime))
+                        .font(.title2.bold())
+                        .foregroundStyle(.blue)
+                        .minimumScaleFactor(0.7)
+                    Text("Avg Session")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -227,11 +317,58 @@ struct StatsView: View {
 
                 VStack(alignment: .leading) {
                     Text("\(totalCalories)")
-                        .font(.largeTitle.bold())
+                        .font(.title2.bold())
                         .foregroundStyle(.orange)
+                        .minimumScaleFactor(0.7)
                     Text("Calories")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding()
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+    
+    // MARK: - All-Time Stats
+    
+    private var allTimeStats: some View {
+        let totalTime = sessions.reduce(0.0) { $0 + $1.duration }
+        let totalCalories = sessions.reduce(0) { $0 + effectiveCalories(for: $1) }
+        let avgTime = sessions.isEmpty ? 0.0 : totalTime / Double(sessions.count)
+        let avgCalories = sessions.isEmpty ? 0 : totalCalories / sessions.count
+        
+        // Find most popular gym
+        let gymCounts = Dictionary(grouping: sessions) { $0.gymName }.mapValues(\.count)
+        let favoriteGym = gymCounts.max(by: { $0.value < $1.value })
+        
+        // Find most active day of week
+        let calendar = Calendar.current
+        let dayCounts = Dictionary(grouping: sessions) { calendar.component(.weekday, from: $0.checkInTime) }.mapValues(\.count)
+        let favoriteDay = dayCounts.max(by: { $0.value < $1.value })
+        let dayNames = ["", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "infinity")
+                    .foregroundStyle(.green)
+                Text("All Time")
+                    .font(.headline)
+            }
+            
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                AllTimeStat(label: "Total Workouts", value: "\(sessions.count)", icon: "checkmark.circle", color: .green)
+                AllTimeStat(label: "Total Time", value: DateFormatters.formatDuration(totalTime), icon: "clock", color: .blue)
+                AllTimeStat(label: "Avg Session", value: DateFormatters.formatDuration(avgTime), icon: "chart.line.uptrend.xyaxis", color: .purple)
+                AllTimeStat(label: "Avg Calories", value: "\(avgCalories)", icon: "flame.fill", color: .orange)
+                
+                if let fav = favoriteGym {
+                    AllTimeStat(label: "Top Gym", value: fav.key, icon: "building.2", color: .teal)
+                }
+                
+                if let dayNum = favoriteDay {
+                    let name = dayNum.key >= 1 && dayNum.key <= 7 ? dayNames[dayNum.key] : "Unknown"
+                    AllTimeStat(label: "Top Day", value: name, icon: "calendar.badge.clock", color: .indigo)
                 }
             }
         }
@@ -243,42 +380,74 @@ struct StatsView: View {
 
     private var bestSessionCard: some View {
         let best = sessions.max(by: { $0.duration < $1.duration })
+        let mostCalories = sessions.max(by: { effectiveCalories(for: $0) < effectiveCalories(for: $1) })
 
         return Group {
             if let best = best {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 12) {
                     HStack {
                         Image(systemName: "trophy.fill")
                             .foregroundStyle(.yellow)
-                        Text("🏆 Personal Best — Longest Session")
+                        Text("Personal Records")
                             .font(.headline)
                     }
-
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(best.gymName)
-                                .font(.subheadline)
-                            Text(DateFormatters.dateFormatter.string(from: best.checkInTime))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if best.calories > 0 {
-                                Text("~\(best.calories) cal")
+                    
+                    // Longest session
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("🏆 Longest Session")
+                            .font(.caption.bold())
+                            .foregroundStyle(.secondary)
+                        
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(best.gymName)
+                                    .font(.subheadline)
+                                Text(DateFormatters.dateFormatter.string(from: best.checkInTime))
                                     .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text(best.formattedDuration)
+                                .font(.title2.bold())
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    
+                    // Most calories
+                    if let mc = mostCalories, effectiveCalories(for: mc) > 0 {
+                        Divider()
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("🔥 Most Calories")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                            
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(mc.gymName)
+                                        .font(.subheadline)
+                                    Text(DateFormatters.dateFormatter.string(from: mc.checkInTime))
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text("\(effectiveCalories(for: mc)) cal")
+                                    .font(.title2.bold())
                                     .foregroundStyle(.orange)
                             }
                         }
-
-                        Spacer()
-
-                        Text(best.formattedDuration)
-                            .font(.title2.bold())
-                            .foregroundStyle(.green)
                     }
                 }
                 .padding()
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
         }
+    }
+    
+    // MARK: - Helpers
+    
+    private func effectiveCalories(for session: WorkoutSession) -> Int {
+        session.calories > 0 ? session.calories : session.estimatedCalories
     }
 }
 
@@ -312,6 +481,36 @@ struct StreakCard: View {
         .frame(maxWidth: .infinity)
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+struct AllTimeStat: View {
+    let label: String
+    let value: String
+    let icon: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundStyle(color)
+                .frame(width: 20)
+            
+            VStack(alignment: .leading, spacing: 2) {
+                Text(value)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Text(label)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(8)
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
     }
 }
 

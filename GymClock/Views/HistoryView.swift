@@ -10,6 +10,8 @@ struct HistoryView: View {
 
     @State private var selectedPeriod: TimePeriod = .week
     @State private var searchText = ""
+    @State private var showDeleteConfirmation = false
+    @State private var sessionToDelete: WorkoutSession?
     @Environment(\.modelContext) private var modelContext
 
     enum TimePeriod: String, CaseIterable {
@@ -84,7 +86,7 @@ struct HistoryView: View {
         let filtered = filteredSessions
         let totalTime = filtered.reduce(0) { $0 + $1.duration }
         let avgTime = filtered.isEmpty ? 0 : totalTime / Double(filtered.count)
-        let totalCals = filtered.reduce(0) { $0 + $1.calories }
+        let totalCals = filtered.reduce(0) { $0 + ($1.calories > 0 ? $1.calories : $1.estimatedCalories) }
 
         return HStack(spacing: 12) {
             StatBadge(title: "Sessions", value: "\(filtered.count)", icon: "checkmark.circle")
@@ -138,7 +140,7 @@ struct HistoryView: View {
         return grouped.map { weekStart, sessions in
             let sorted = sessions.sorted { $0.checkInTime > $1.checkInTime }
             let totalTime = sorted.reduce(0.0) { $0 + $1.duration }
-            let totalCals = sorted.reduce(0) { $0 + $1.calories }
+            let totalCals = sorted.reduce(0) { $0 + ($1.calories > 0 ? $1.calories : $1.estimatedCalories) }
 
             let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart) ?? weekStart
             let startStr = DateFormatters.shortDateFormatter.string(from: weekStart)
@@ -253,8 +255,9 @@ struct SessionRow: View {
                         .font(.title3.bold())
                         .foregroundStyle(.green)
 
-                    if session.calories > 0 {
-                        Text("\(session.calories) cal")
+                    let effectiveCal = session.calories > 0 ? session.calories : session.estimatedCalories
+                    if effectiveCal > 0 {
+                        Text("~\(effectiveCal) cal")
                             .font(.caption2)
                             .foregroundStyle(.orange)
                     }

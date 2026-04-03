@@ -86,7 +86,7 @@ struct SettingsView: View {
                     HStack {
                         Text("Version")
                         Spacer()
-                        Text("1.1.0")
+                        Text("1.2.0")
                             .foregroundStyle(.secondary)
                     }
 
@@ -182,10 +182,13 @@ struct AddGymView: View {
 
     @State private var name = ""
     @State private var radius: Double = 100
-    @State private var region = MKCoordinateRegion(
-        center: CLLocationCoordinate2D(latitude: 40.7580, longitude: -73.9855),
-        span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+    @State private var position: MapCameraPosition = .region(
+        MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 40.7580, longitude: -73.9855),
+            span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
+        )
     )
+    @State private var selectedCoordinate = CLLocationCoordinate2D(latitude: 40.7580, longitude: -73.9855)
 
     var body: some View {
         NavigationStack {
@@ -201,9 +204,14 @@ struct AddGymView: View {
                 }
 
                 Section("Location") {
-                    Map(coordinateRegion: $region, interactionModes: .all)
-                        .frame(height: 250)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    Map(position: $position) {
+                        Marker(name.isEmpty ? "Gym" : name, coordinate: selectedCoordinate)
+                    }
+                    .onMapCameraChange(frequency: .onEnd) { context in
+                        selectedCoordinate = context.camera.centerCoordinate
+                    }
+                    .frame(height: 250)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
 
                     Text("Center the map on your gym location")
                         .font(.caption)
@@ -227,8 +235,8 @@ struct AddGymView: View {
     private func saveGym() {
         let gym = GymLocation(
             name: name,
-            latitude: region.center.latitude,
-            longitude: region.center.longitude,
+            latitude: selectedCoordinate.latitude,
+            longitude: selectedCoordinate.longitude,
             radius: radius
         )
         modelContext.insert(gym)

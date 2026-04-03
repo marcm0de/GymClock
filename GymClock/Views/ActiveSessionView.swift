@@ -144,6 +144,7 @@ struct ActiveSessionView: View {
                 session.notes = sessionNotes
                 session.workoutType = selectedWorkoutType
                 
+                // Capture session data before ending
                 let streak = sessionTracker.currentStreak(allSessions: completedSessions)
                 lastShareText = ShareManager.generateShareText(
                     session: session,
@@ -154,10 +155,15 @@ struct ActiveSessionView: View {
                 sessionTracker.endSession()
                 
                 // Check achievements after checkout
-                achievementManager.checkAchievements(
-                    sessions: completedSessions,
-                    currentStreak: streak
-                )
+                // Include the just-ended session (it's now in completedSessions after save)
+                // Use a slight delay to let SwiftData update the query
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    achievementManager.checkAchievements(
+                        sessions: completedSessions,
+                        currentStreak: streak
+                    )
+                }
                 
                 sessionNotes = ""
                 showNotesField = false
@@ -250,7 +256,27 @@ struct ActiveSessionView: View {
 
             // Manual Check In
             VStack(spacing: 12) {
-                if let gym = gyms.first {
+                if gyms.isEmpty {
+                    // No gyms configured — show quick start with generic name
+                    Button(action: {
+                        sessionTracker.startSession(gymName: "Quick Session")
+                        showShareSheet = false
+                    }) {
+                        HStack {
+                            Image(systemName: "play.circle.fill")
+                            Text("Quick Start")
+                        }
+                        .font(.title3.bold())
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(.green, in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    
+                    Text("Add a gym in Settings for auto-detection")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if let gym = gyms.first {
                     Button(action: {
                         sessionTracker.startSession(gymName: gym.name)
                         showShareSheet = false
