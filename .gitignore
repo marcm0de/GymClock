@@ -49,3 +49,9 @@ playground.xcworkspace
 
 # Code Injection
 iOSInjectionProject/
+node_modules/
+
+.env*
+.env.local
+.next/
+dist/
