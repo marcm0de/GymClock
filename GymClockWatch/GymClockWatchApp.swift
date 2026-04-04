@@ -6,7 +6,7 @@ struct GymClockWatchApp: App {
     @StateObject private var sessionTracker = SessionTracker()
     @StateObject private var connectivityManager = WatchConnectivityManager.shared
     
-    var sharedModelContainer: ModelContainer = {
+    let sharedModelContainer: ModelContainer = {
         let schema = Schema([
             WorkoutSession.self,
             GymLocation.self
@@ -20,6 +20,7 @@ struct GymClockWatchApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
+            // Unrecoverable — the app needs its data store to function
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()

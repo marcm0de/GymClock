@@ -208,10 +208,8 @@ final class AchievementManager: ObservableObject {
             unlock("calories_1000")
         }
         
-        // Perfect Week (7 consecutive days)
-        if currentStreak >= 7 {
-            unlock("perfect_week")
-        }
+        // Perfect Week (all 7 days in a single calendar week)
+        checkPerfectWeek(sessions: completedSessions, calendar: calendar)
         
         // Weekend Warrior (Saturday AND Sunday in the same weekend)
         checkWeekendWarrior(sessions: completedSessions, calendar: calendar)
@@ -245,6 +243,22 @@ final class AchievementManager: ObservableObject {
         saveAchievements()
     }
     
+    private func checkPerfectWeek(sessions: [WorkoutSession], calendar: Calendar) {
+        // Group sessions by calendar week, check if any week has all 7 days
+        let grouped = Dictionary(grouping: sessions) { session in
+            calendar.dateInterval(of: .weekOfYear, for: session.checkInTime)?.start ?? session.checkInTime
+        }
+
+        for (weekStart, weekSessions) in grouped {
+            let uniqueDays = Set(weekSessions.map { calendar.startOfDay(for: $0.checkInTime) })
+            updateProgress("perfect_week", current: uniqueDays.count, target: 7)
+            if uniqueDays.count >= 7 {
+                unlock("perfect_week")
+                return
+            }
+        }
+    }
+
     private func checkWeekendWarrior(sessions: [WorkoutSession], calendar: Calendar) {
         // Group sessions by week, check if any week has both Saturday and Sunday
         let grouped = Dictionary(grouping: sessions) { session in
@@ -313,12 +327,12 @@ final class AchievementManager: ObservableObject {
         // Cancel any previous dismiss task
         dismissTask?.cancel()
         
-        // Auto-dismiss after 4 seconds
-        dismissTask = Task {
+        // Auto-dismiss after 4 seconds — use [weak self] to avoid retain cycle
+        dismissTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 4_000_000_000)
             guard !Task.isCancelled else { return }
-            showCelebration = false
-            newlyUnlocked = nil
+            self?.showCelebration = false
+            self?.newlyUnlocked = nil
         }
     }
     

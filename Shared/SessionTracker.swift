@@ -8,6 +8,7 @@ final class SessionTracker: ObservableObject {
     @Published var activeSession: WorkoutSession?
     @Published var isTracking = false
     @Published var elapsedTime: TimeInterval = 0
+    @Published var healthKitAuthorized = false
 
     private var timer: Timer?
     private var modelContext: ModelContext?
@@ -50,7 +51,9 @@ final class SessionTracker: ObservableObject {
         try? modelContext?.save()
 
         stopTimer()
-        endHealthKitWorkout(duration: finalDuration, calories: finalCalories)
+        if healthKitAuthorized {
+            endHealthKitWorkout(duration: finalDuration, calories: finalCalories)
+        }
     }
 
     func manualCheckIn(gymName: String) {
@@ -101,13 +104,13 @@ final class SessionTracker: ObservableObject {
 
     private func setupGeofencing() {
         GeofenceManager.shared.onEnterGym = { [weak self] regionId in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.handleGymEntry(regionId: regionId)
             }
         }
 
         GeofenceManager.shared.onExitGym = { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.handleGymExit()
             }
         }
@@ -115,8 +118,12 @@ final class SessionTracker: ObservableObject {
 
     private func handleGymEntry(regionId: String) {
         guard let modelContext = modelContext else { return }
+        // If regionId is not a valid UUID, ignore (don't generate a random one)
+        guard let id = UUID(uuidString: regionId) else {
+            print("Invalid region ID received: \(regionId)")
+            return
+        }
 
-        let id = UUID(uuidString: regionId) ?? UUID()
         let descriptor = FetchDescriptor<GymLocation>(
             predicate: #Predicate { $0.id == id }
         )
@@ -134,16 +141,27 @@ final class SessionTracker: ObservableObject {
     // MARK: - HealthKit
 
     func requestHealthKitAuthorization() {
-        guard HKHealthStore.isHealthDataAvailable() else { return }
+        guard HKHealthStore.isHealthDataAvailable() else {
+            print("HealthKit not available on this device")
+            return
+        }
 
         let workoutType = HKObjectType.workoutType()
-        let activeEnergy = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned)!
+        guard let activeEnergy = HKObjectType.quantityType(forIdentifier: .activeEnergyBurned) else {
+            print("Could not create activeEnergyBurned quantity type")
+            return
+        }
         let typesToShare: Set<HKSampleType> = [workoutType, activeEnergy]
         let typesToRead: Set<HKObjectType> = [workoutType, activeEnergy]
 
-        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { success, error in
+        healthStore.requestAuthorization(toShare: typesToShare, read: typesToRead) { [weak self] success, error in
+            Task { @MainActor in
+                self?.healthKitAuthorized = success
+            }
             if let error = error {
                 print("HealthKit authorization failed: \(error.localizedDescription)")
+            } else if !success {
+                print("HealthKit authorization denied by user")
             }
         }
     }
@@ -155,6 +173,7 @@ final class SessionTracker: ObservableObject {
 
     private func endHealthKitWorkout(duration: TimeInterval, calories: Int = 0) {
         guard HKHealthStore.isHealthDataAvailable() else { return }
+        guard duration > 0 else { return }
 
         let endDate = Date()
         let startDate = endDate.addingTimeInterval(-duration)
@@ -214,7 +233,10 @@ final class SessionTracker: ObservableObject {
 
         if todaySessions.isEmpty {
             // No session today, start checking from yesterday
-            currentDate = calendar.date(byAdding: .day, value: -1, to: currentDate)!
+            guard let yesterday = calendar.date(byAdding: .day, value: -1, to: currentDate) else {
+                return 0
+            }
+            currentDate = yesterday
         }
 
         while true {
@@ -227,7 +249,10 @@ final class SessionTracker: ObservableObject {
             }
 
             streak += 1
-            currentDate = calendar.date(byAdding: .day, value: -1, to: currentDate)!
+            guard let previousDay = calendar.date(byAdding: .day, value: -1, to: currentDate) else {
+                break
+            }
+            currentDate = previousDay
         }
 
         return streak
@@ -241,11 +266,16 @@ final class SessionTracker: ObservableObject {
 
         guard !sortedSessions.isEmpty else { return 0 }
 
+        guard var currentWeekStart = calendar.dateInterval(of: .weekOfYear, for: Date())?.start else {
+            return 0
+        }
+
         var streak = 0
-        var currentWeekStart = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
 
         while true {
-            let weekEnd = calendar.date(byAdding: .weekOfYear, value: 1, to: currentWeekStart)!
+            guard let weekEnd = calendar.date(byAdding: .weekOfYear, value: 1, to: currentWeekStart) else {
+                break
+            }
             let weekSessions = sortedSessions.filter {
                 $0.checkInTime >= currentWeekStart && $0.checkInTime < weekEnd
             }
@@ -255,7 +285,10 @@ final class SessionTracker: ObservableObject {
             }
 
             streak += 1
-            currentWeekStart = calendar.date(byAdding: .weekOfYear, value: -1, to: currentWeekStart)!
+            guard let previousWeek = calendar.date(byAdding: .weekOfYear, value: -1, to: currentWeekStart) else {
+                break
+            }
+            currentWeekStart = previousWeek
         }
 
         return streak

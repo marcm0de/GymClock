@@ -8,6 +8,7 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     static let shared = WatchConnectivityManager()
     
     @Published var isReachable = false
+    @Published var isActivated = false
     @Published var lastReceivedMessage: [String: Any] = [:]
     @Published var receivedSessions: [WorkoutSessionTransfer] = []
     
@@ -38,21 +39,29 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     
     /// Send an immediate message (requires counterpart to be reachable)
     func sendMessage(_ message: [String: Any], replyHandler: (([String: Any]) -> Void)? = nil) {
+        guard session.activationState == .activated else {
+            print("WCSession not activated, cannot send message")
+            return
+        }
         guard session.isReachable else {
             print("Watch/Phone not reachable, falling back to application context")
             updateApplicationContext(message)
             return
         }
         
-        session.sendMessage(message, replyHandler: replyHandler) { error in
+        session.sendMessage(message, replyHandler: replyHandler) { [weak self] error in
             print("Failed to send message: \(error.localizedDescription)")
             // Fallback to application context
-            self.updateApplicationContext(message)
+            self?.updateApplicationContext(message)
         }
     }
     
     /// Update application context (latest state, delivered when counterpart wakes)
     func updateApplicationContext(_ context: [String: Any]) {
+        guard session.activationState == .activated else {
+            print("WCSession not activated, cannot update application context")
+            return
+        }
         do {
             try session.updateApplicationContext(context)
         } catch {
@@ -62,6 +71,10 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
     
     /// Transfer user info (queued, guaranteed delivery)
     func transferUserInfo(_ userInfo: [String: Any]) {
+        guard session.activationState == .activated else {
+            print("WCSession not activated, cannot transfer user info")
+            return
+        }
         session.transferUserInfo(userInfo)
     }
     
@@ -107,8 +120,9 @@ final class WatchConnectivityManager: NSObject, ObservableObject {
 
 extension WatchConnectivityManager: WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
-        DispatchQueue.main.async {
-            self.isReachable = session.isReachable
+        DispatchQueue.main.async { [weak self] in
+            self?.isReachable = session.isReachable
+            self?.isActivated = (activationState == .activated)
         }
         if let error = error {
             print("WCSession activation failed: \(error.localizedDescription)")
@@ -118,36 +132,36 @@ extension WatchConnectivityManager: WCSessionDelegate {
     }
     
     func sessionReachabilityDidChange(_ session: WCSession) {
-        DispatchQueue.main.async {
-            self.isReachable = session.isReachable
+        DispatchQueue.main.async { [weak self] in
+            self?.isReachable = session.isReachable
         }
     }
     
     // Immediate messages
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
-        DispatchQueue.main.async {
-            self.handleReceivedData(message)
+        DispatchQueue.main.async { [weak self] in
+            self?.handleReceivedData(message)
         }
     }
     
     func session(_ session: WCSession, didReceiveMessage message: [String: Any], replyHandler: @escaping ([String: Any]) -> Void) {
-        DispatchQueue.main.async {
-            self.handleReceivedData(message)
+        DispatchQueue.main.async { [weak self] in
+            self?.handleReceivedData(message)
         }
         replyHandler(["status": "received"])
     }
     
     // Application context
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
-        DispatchQueue.main.async {
-            self.handleReceivedData(applicationContext)
+        DispatchQueue.main.async { [weak self] in
+            self?.handleReceivedData(applicationContext)
         }
     }
     
     // User info transfers (guaranteed delivery)
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]) {
-        DispatchQueue.main.async {
-            self.handleReceivedData(userInfo)
+        DispatchQueue.main.async { [weak self] in
+            self?.handleReceivedData(userInfo)
         }
     }
     

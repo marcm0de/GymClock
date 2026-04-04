@@ -6,7 +6,7 @@ final class HapticManager {
     static let shared = HapticManager()
     
     /// User preference for haptic feedback
-    @Published var isEnabled: Bool {
+    var isEnabled: Bool {
         didSet {
             UserDefaults.standard.set(isEnabled, forKey: "hapticFeedbackEnabled")
         }

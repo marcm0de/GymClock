@@ -7,7 +7,7 @@ struct GymClockApp: App {
     @StateObject private var achievementManager = AchievementManager()
     @ObservedObject private var geofenceManager = GeofenceManager.shared
 
-    var sharedModelContainer: ModelContainer = {
+    let sharedModelContainer: ModelContainer = {
         let schema = Schema([
             WorkoutSession.self,
             GymLocation.self
@@ -21,6 +21,8 @@ struct GymClockApp: App {
         do {
             return try ModelContainer(for: schema, configurations: [modelConfiguration])
         } catch {
+            // This is a truly unrecoverable error — the app cannot function without its data store.
+            // In production, consider presenting an error UI or migrating the schema.
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
@@ -34,8 +36,11 @@ struct GymClockApp: App {
                 .onAppear {
                     sessionTracker.configure(with: sharedModelContainer.mainContext)
                     sessionTracker.requestHealthKitAuthorization()
-                    geofenceManager.requestAuthorization()
+                    WatchConnectivityManager.shared.activate()
                     seedDefaultGymIfNeeded()
+                    // Request authorization and start monitoring after gyms are seeded
+                    geofenceManager.requestAuthorization()
+                    startGeofencingIfNeeded()
                 }
         }
         .modelContainer(sharedModelContainer)
@@ -50,5 +55,12 @@ struct GymClockApp: App {
             context.insert(GymLocation.planetFitness)
             try? context.save()
         }
+    }
+
+    private func startGeofencingIfNeeded() {
+        let context = sharedModelContainer.mainContext
+        let descriptor = FetchDescriptor<GymLocation>()
+        guard let gyms = try? context.fetch(descriptor), !gyms.isEmpty else { return }
+        geofenceManager.startMonitoring(locations: gyms)
     }
 }
