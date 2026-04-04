@@ -30,7 +30,9 @@ struct HistoryView: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                .padding()
+                .padding(.horizontal)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
 
                 // Summary
                 summaryCard
@@ -44,13 +46,8 @@ struct HistoryView: View {
                     )
                 } else {
                     List {
-                        // Weekly Summaries
                         ForEach(weeklyGroups, id: \.weekStart) { weekGroup in
                             Section {
-                                // Weekly summary header
-                                WeeklySummaryRow(group: weekGroup, longestSessionId: longestSessionId)
-
-                                // Individual sessions in that week
                                 ForEach(weekGroup.sessions) { session in
                                     SessionRow(
                                         session: session,
@@ -62,7 +59,7 @@ struct HistoryView: View {
                                     deleteSessions(daySessions: weekGroup.sessions, at: indexSet)
                                 }
                             } header: {
-                                Text(weekGroup.label)
+                                WeeklySummaryHeader(group: weekGroup)
                             }
                         }
                     }
@@ -88,11 +85,11 @@ struct HistoryView: View {
         let avgTime = filtered.isEmpty ? 0 : totalTime / Double(filtered.count)
         let totalCals = filtered.reduce(0) { $0 + ($1.calories > 0 ? $1.calories : $1.estimatedCalories) }
 
-        return HStack(spacing: 12) {
-            StatBadge(title: "Sessions", value: "\(filtered.count)", icon: "checkmark.circle")
-            StatBadge(title: "Total", value: DateFormatters.formatDuration(totalTime), icon: "clock")
-            StatBadge(title: "Avg", value: DateFormatters.formatDuration(avgTime), icon: "chart.line.uptrend.xyaxis")
-            StatBadge(title: "Cals", value: "\(totalCals)", icon: "flame.fill")
+        return HStack(spacing: 10) {
+            StatBadge(title: "Sessions", value: "\(filtered.count)", icon: "checkmark.circle", color: .green)
+            StatBadge(title: "Total", value: DateFormatters.formatDuration(totalTime), icon: "clock.fill", color: .blue)
+            StatBadge(title: "Avg", value: DateFormatters.formatDuration(avgTime), icon: "chart.line.uptrend.xyaxis", color: .purple)
+            StatBadge(title: "Cals", value: "\(totalCals)", icon: "flame.fill", color: .orange)
         }
         .padding(.horizontal)
         .padding(.bottom, 8)
@@ -116,7 +113,6 @@ struct HistoryView: View {
             result = sessions
         }
         
-        // Apply search filter
         if !searchText.isEmpty {
             let query = searchText.lowercased()
             result = result.filter { session in
@@ -176,33 +172,34 @@ struct WeekGroup {
     let totalCalories: Int
 }
 
-// MARK: - Weekly Summary Row
+// MARK: - Weekly Summary Header (promoted to section header)
 
-struct WeeklySummaryRow: View {
+struct WeeklySummaryHeader: View {
     let group: WeekGroup
-    let longestSessionId: UUID?
 
     var body: some View {
-        HStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(group.sessions.count) sessions")
-                    .font(.subheadline.bold())
+        VStack(alignment: .leading, spacing: 4) {
+            Text(group.label)
+                .font(.subheadline.bold())
+                .foregroundStyle(.primary)
+
+            HStack(spacing: 16) {
+                Label("\(group.sessions.count) sessions", systemImage: "checkmark.circle.fill")
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.green)
+
+                Label(DateFormatters.formatDuration(group.totalTime), systemImage: "clock.fill")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(.blue)
+
                 if group.totalCalories > 0 {
-                    Text("~\(group.totalCalories) cal")
-                        .font(.caption)
+                    Label("~\(group.totalCalories) cal", systemImage: "flame.fill")
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(.orange)
                 }
             }
-
-            Spacer()
-
-            Text(DateFormatters.formatDuration(group.totalTime))
-                .font(.subheadline.bold())
-                .foregroundStyle(.green)
         }
-        .padding(.vertical, 4)
-        .listRowBackground(Color.green.opacity(0.05))
+        .padding(.vertical, 2)
     }
 }
 
@@ -214,69 +211,86 @@ struct SessionRow: View {
     var showFullNotes: Bool = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(session.gymName)
-                            .font(.headline)
+        HStack(spacing: 12) {
+            // Left accent — workout type color bar
+            RoundedRectangle(cornerRadius: 2)
+                .fill(workoutColor)
+                .frame(width: 4, height: 44)
 
-                        if let type = WorkoutType(rawValue: session.workoutTypeRaw) {
-                            Image(systemName: type.icon)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Image(systemName: session.workoutType.icon)
+                        .font(.caption)
+                        .foregroundStyle(workoutColor)
 
-                        if isPersonalBest {
-                            Text("🏆 PB")
-                                .font(.caption2.bold())
-                                .foregroundStyle(.yellow)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(.yellow.opacity(0.15), in: Capsule())
-                        }
+                    Text(session.gymName)
+                        .font(.subheadline.bold())
+
+                    if isPersonalBest {
+                        Text("🏆 PB")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.yellow)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(.yellow.opacity(0.15), in: Capsule())
                     }
-
-                    HStack(spacing: 4) {
-                        Text(DateFormatters.timeFormatter.string(from: session.checkInTime))
-                        if let checkout = session.checkOutTime {
-                            Text("–")
-                            Text(DateFormatters.timeFormatter.string(from: checkout))
-                        }
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 }
 
-                Spacer()
-
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(session.shortDuration)
-                        .font(.title3.bold())
-                        .foregroundStyle(.green)
-
-                    let effectiveCal = session.calories > 0 ? session.calories : session.estimatedCalories
-                    if effectiveCal > 0 {
-                        Text("~\(effectiveCal) cal")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
+                HStack(spacing: 4) {
+                    Text(DateFormatters.dayOfWeekFormatter.string(from: session.checkInTime))
+                        .foregroundStyle(.primary.opacity(0.6))
+                    Text("·")
+                    Text(DateFormatters.timeFormatter.string(from: session.checkInTime))
+                    if let checkout = session.checkOutTime {
+                        Text("–")
+                        Text(DateFormatters.timeFormatter.string(from: checkout))
                     }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+                // Notes
+                if !session.notes.isEmpty {
+                    Text(session.notes)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(showFullNotes ? 5 : 1)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(.systemGray6), in: RoundedRectangle(cornerRadius: 6))
                 }
             }
-            
-            // Show notes prominently
-            if !session.notes.isEmpty {
-                Text(session.notes)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(showFullNotes ? 5 : 1)
-                    .padding(.top, 2)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.gray.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+            Spacer()
+
+            // Right side — duration and calories
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(session.shortDuration)
+                    .font(.title3.bold())
+                    .foregroundStyle(.green)
+
+                let effectiveCal = session.calories > 0 ? session.calories : session.estimatedCalories
+                if effectiveCal > 0 {
+                    HStack(spacing: 2) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 9))
+                        Text("\(effectiveCal)")
+                            .font(.caption2.bold())
+                    }
+                    .foregroundStyle(.orange)
+                }
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private var workoutColor: Color {
+        switch session.workoutType {
+        case .weights: return .blue
+        case .cardio: return .orange
+        case .mixed: return .purple
+        case .other: return .gray
+        }
     }
 }
 
@@ -286,16 +300,18 @@ struct StatBadge: View {
     let title: String
     let value: String
     let icon: String
+    var color: Color = .green
 
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: icon)
-                .font(.title3)
-                .foregroundStyle(.green)
+                .font(.body)
+                .foregroundStyle(color)
 
             Text(value)
                 .font(.headline)
                 .minimumScaleFactor(0.7)
+                .lineLimit(1)
 
             Text(title)
                 .font(.caption2)
@@ -303,7 +319,11 @@ struct StatBadge: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(color.opacity(0.15), lineWidth: 1)
+        )
     }
 }
 

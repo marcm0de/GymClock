@@ -16,25 +16,20 @@ struct AchievementsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    // Progress Header
                     progressHeader
                     
-                    // "Almost There" section
                     if !achievementManager.nextToUnlock.isEmpty {
                         almostThereSection
                     }
                     
-                    // Rarity Filter
                     rarityFilter
                     
-                    // Achievement Grid
                     LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                         ForEach(filteredAchievements) { achievement in
                             AchievementCard(achievement: achievement)
                         }
                     }
                     
-                    // Stats footer
                     statsFooter
                 }
                 .padding()
@@ -47,45 +42,72 @@ struct AchievementsView: View {
     
     private var progressHeader: some View {
         VStack(spacing: 16) {
-            // Trophy shelf
+            // Trophy shelf with rarity breakdown
             HStack(spacing: 0) {
                 ForEach(Array(AchievementRarity.allCases.enumerated()), id: \.element.rawValue) { _, rarity in
                     let count = achievementManager.achievements.filter { $0.rarity == rarity && $0.isUnlocked }.count
                     let total = achievementManager.achievements.filter { $0.rarity == rarity }.count
                     
-                    VStack(spacing: 4) {
-                        Text("\(count)/\(total)")
-                            .font(.subheadline.bold())
-                            .foregroundStyle(rarity.color)
+                    VStack(spacing: 6) {
+                        ZStack {
+                            Circle()
+                                .fill(rarity.color.opacity(0.12))
+                                .frame(width: 36, height: 36)
+                            Text("\(count)")
+                                .font(.system(.body, design: .rounded).bold())
+                                .foregroundStyle(count > 0 ? rarity.color : .secondary)
+                        }
                         Text(rarity.rawValue)
-                            .font(.caption2)
+                            .font(.caption2.bold())
+                            .foregroundStyle(count > 0 ? rarity.color : .secondary)
+                        Text("\(count)/\(total)")
+                            .font(.system(size: 9))
                             .foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
                 }
             }
             
-            // Overall progress
-            HStack {
-                Text("🏆 Total Progress")
-                    .font(.headline)
+            Divider()
+            
+            // Overall progress ring
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .stroke(Color(.systemGray5), lineWidth: 6)
+                        .frame(width: 56, height: 56)
+                    
+                    Circle()
+                        .trim(from: 0, to: achievementManager.totalCount > 0
+                              ? Double(achievementManager.unlockedCount) / Double(achievementManager.totalCount)
+                              : 0)
+                        .stroke(Color.green, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .frame(width: 56, height: 56)
+                        .rotationEffect(.degrees(-90))
+                        .animation(.spring(response: 0.8), value: achievementManager.unlockedCount)
+                    
+                    Text("🏆")
+                        .font(.title3)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Total Progress")
+                        .font(.headline)
+                    
+                    Text("\(achievementManager.unlockedCount) of \(achievementManager.totalCount) unlocked")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    
+                    let percentage = achievementManager.totalCount > 0
+                        ? Int(Double(achievementManager.unlockedCount) / Double(achievementManager.totalCount) * 100)
+                        : 0
+                    Text("\(percentage)% Complete")
+                        .font(.caption.bold())
+                        .foregroundStyle(.green)
+                }
+                
                 Spacer()
-                Text("\(achievementManager.unlockedCount)/\(achievementManager.totalCount)")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.green)
             }
-            
-            ProgressView(value: Double(achievementManager.unlockedCount), total: Double(achievementManager.totalCount))
-                .tint(.green)
-                .scaleEffect(y: 2)
-            
-            // Completion percentage
-            let percentage = achievementManager.totalCount > 0
-                ? Int(Double(achievementManager.unlockedCount) / Double(achievementManager.totalCount) * 100)
-                : 0
-            Text("\(percentage)% Complete")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
         .padding()
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -95,7 +117,7 @@ struct AchievementsView: View {
     
     private var almostThereSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
+            HStack(spacing: 6) {
                 Image(systemName: "bolt.fill")
                     .foregroundStyle(.yellow)
                 Text("Almost There!")
@@ -104,10 +126,15 @@ struct AchievementsView: View {
             
             ForEach(Array(achievementManager.nextToUnlock.prefix(3))) { achievement in
                 HStack(spacing: 12) {
-                    Text(achievement.icon)
-                        .font(.title3)
+                    ZStack {
+                        Circle()
+                            .fill(achievement.rarity.color.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                        Text(achievement.icon)
+                            .font(.title3)
+                    }
                     
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text(achievement.title)
                                 .font(.subheadline.bold())
@@ -115,16 +142,31 @@ struct AchievementsView: View {
                             Text("\(Int(achievement.progress * 100))%")
                                 .font(.caption.bold())
                                 .foregroundStyle(achievement.rarity.color)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(achievement.rarity.color.opacity(0.1), in: Capsule())
                         }
                         
-                        ProgressView(value: achievement.progress)
-                            .tint(achievement.rarity.color)
+                        // Custom progress bar
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color(.systemGray5))
+                                    .frame(height: 6)
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(achievement.rarity.color)
+                                    .frame(width: geo.size.width * achievement.progress, height: 6)
+                                    .animation(.spring(response: 0.6), value: achievement.progress)
+                            }
+                        }
+                        .frame(height: 6)
                         
                         Text(achievement.description)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
+                .padding(.vertical, 4)
             }
         }
         .padding()
@@ -137,12 +179,14 @@ struct AchievementsView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 FilterChip(label: "All", isSelected: selectedRarity == nil) {
-                    selectedRarity = nil
+                    withAnimation(.spring(response: 0.3)) { selectedRarity = nil }
                 }
                 
                 ForEach(AchievementRarity.allCases, id: \.rawValue) { rarity in
                     FilterChip(label: rarity.rawValue, isSelected: selectedRarity == rarity, color: rarity.color) {
-                        selectedRarity = selectedRarity == rarity ? nil : rarity
+                        withAnimation(.spring(response: 0.3)) {
+                            selectedRarity = selectedRarity == rarity ? nil : rarity
+                        }
                     }
                 }
             }
@@ -157,8 +201,9 @@ struct AchievementsView: View {
         
         return Group {
             if let latest = latestUnlock {
-                HStack {
-                    Image(systemName: "clock")
+                HStack(spacing: 6) {
+                    Image(systemName: "clock.fill")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                     Text("Last unlock: \(latest, style: .relative) ago")
                         .font(.caption)
@@ -184,11 +229,15 @@ struct FilterChip: View {
             Text(label)
                 .font(.caption.bold())
                 .foregroundStyle(isSelected ? .white : color)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
                 .background(
                     isSelected ? color : color.opacity(0.1),
                     in: Capsule()
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(isSelected ? Color.clear : color.opacity(0.3), lineWidth: 1)
                 )
         }
     }
@@ -204,38 +253,46 @@ extension AchievementRarity: CaseIterable {
 
 struct AchievementCard: View {
     let achievement: Achievement
-    @State private var isHovered = false
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             // Icon with rarity glow
             ZStack {
                 if achievement.isUnlocked {
                     Circle()
                         .fill(achievement.rarity.glowColor)
-                        .frame(width: 56, height: 56)
-                        .blur(radius: 8)
+                        .frame(width: 60, height: 60)
+                        .blur(radius: 10)
                 }
                 
+                Circle()
+                    .fill(achievement.isUnlocked
+                          ? achievement.rarity.color.opacity(0.12)
+                          : Color(.systemGray6))
+                    .frame(width: 56, height: 56)
+                
                 Text(achievement.icon)
-                    .font(.system(size: 40))
+                    .font(.system(size: 32))
                     .grayscale(achievement.isUnlocked ? 0 : 1)
-                    .opacity(achievement.isUnlocked ? 1 : 0.4)
+                    .opacity(achievement.isUnlocked ? 1 : 0.35)
             }
             
             Text(achievement.title)
                 .font(.subheadline.bold())
                 .foregroundStyle(achievement.isUnlocked ? .primary : .secondary)
                 .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
             
             // Rarity badge
-            Text(achievement.rarity.rawValue)
-                .font(.system(size: 9).bold())
+            Text(achievement.rarity.rawValue.uppercased())
+                .font(.system(size: 9, weight: .heavy))
+                .tracking(0.5)
                 .foregroundStyle(achievement.isUnlocked ? achievement.rarity.color : .gray)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
                 .background(
-                    (achievement.isUnlocked ? achievement.rarity.color : .gray).opacity(0.15),
+                    (achievement.isUnlocked ? achievement.rarity.color : .gray).opacity(0.12),
                     in: Capsule()
                 )
             
@@ -247,36 +304,46 @@ struct AchievementCard: View {
             
             // Progress bar for locked achievements
             if !achievement.isUnlocked && achievement.progress > 0 {
-                VStack(spacing: 2) {
-                    ProgressView(value: achievement.progress)
-                        .tint(achievement.rarity.color)
+                VStack(spacing: 3) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2.5)
+                                .fill(Color(.systemGray5))
+                                .frame(height: 5)
+                            RoundedRectangle(cornerRadius: 2.5)
+                                .fill(achievement.rarity.color)
+                                .frame(width: geo.size.width * achievement.progress, height: 5)
+                        }
+                    }
+                    .frame(height: 5)
+                    
                     Text("\(Int(achievement.progress * 100))%")
-                        .font(.system(size: 9))
+                        .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                 }
             }
             
             if let date = achievement.unlockedDate {
                 Text(date, style: .date)
-                    .font(.caption2)
+                    .font(.system(size: 10))
                     .foregroundStyle(.green)
             }
         }
         .frame(maxWidth: .infinity)
-        .padding()
+        .padding(14)
         .background(
             achievement.isUnlocked
-                ? achievement.rarity.color.opacity(0.08)
-                : Color.gray.opacity(0.05),
+                ? achievement.rarity.color.opacity(0.06)
+                : Color(.systemGray6).opacity(0.5),
             in: RoundedRectangle(cornerRadius: 16)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16)
                 .stroke(
                     achievement.isUnlocked
-                        ? achievement.rarity.color.opacity(0.3)
-                        : Color.gray.opacity(0.15),
-                    lineWidth: achievement.isUnlocked ? 1.5 : 1
+                        ? achievement.rarity.color.opacity(0.25)
+                        : Color(.systemGray4).opacity(0.3),
+                    lineWidth: achievement.isUnlocked ? 1.5 : 0.5
                 )
         )
     }
@@ -305,7 +372,7 @@ struct AchievementCelebrationOverlay: View {
                     }
                 }
             
-            VStack(spacing: 20) {
+            VStack(spacing: 24) {
                 // Animated confetti burst
                 ZStack {
                     ForEach(0..<12, id: \.self) { index in
@@ -325,49 +392,57 @@ struct AchievementCelebrationOverlay: View {
                 ZStack {
                     Circle()
                         .fill(achievement.rarity.glowColor)
-                        .frame(width: 100, height: 100)
+                        .frame(width: 110, height: 110)
                         .blur(radius: glowRadius)
                     
+                    Circle()
+                        .fill(achievement.rarity.color.opacity(0.15))
+                        .frame(width: 90, height: 90)
+                    
                     Text(achievement.icon)
-                        .font(.system(size: 80))
+                        .font(.system(size: 64))
                         .scaleEffect(iconScale)
                 }
                 
                 // Rarity label
                 Text(achievement.rarity.rawValue.uppercased())
                     .font(.caption.bold())
-                    .tracking(3)
+                    .tracking(4)
                     .foregroundStyle(achievement.rarity.color)
                 
-                Text("Achievement Unlocked!")
-                    .font(.title2.bold())
-                    .foregroundStyle(.white)
-                
-                Text(achievement.title)
-                    .font(.title3.bold())
-                    .foregroundStyle(achievement.rarity.color)
-                
-                Text(achievement.description)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                VStack(spacing: 6) {
+                    Text("Achievement Unlocked!")
+                        .font(.title2.bold())
+                        .foregroundStyle(.white)
+                    
+                    Text(achievement.title)
+                        .font(.title3.bold())
+                        .foregroundStyle(achievement.rarity.color)
+                    
+                    Text(achievement.description)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                }
                 
                 // Share button
                 ShareLink(
                     item: ShareManager.generateAchievementShareText(achievement: achievement)
                 ) {
-                    HStack {
+                    HStack(spacing: 6) {
                         Image(systemName: "square.and.arrow.up")
                         Text("Share")
                     }
                     .font(.subheadline.bold())
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 12)
                     .background(achievement.rarity.color, in: Capsule())
+                    .shadow(color: achievement.rarity.color.opacity(0.4), radius: 8, x: 0, y: 4)
                 }
             }
-            .padding(32)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
+            .padding(36)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
             .scaleEffect(scale)
             .opacity(opacity)
         }

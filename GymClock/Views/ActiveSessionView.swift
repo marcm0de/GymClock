@@ -16,6 +16,7 @@ struct ActiveSessionView: View {
     @State private var sessionNotes = ""
     @State private var showShareSheet = false
     @State private var lastShareText = ""
+    @State private var timerPulse = false
 
     var body: some View {
         NavigationStack {
@@ -34,47 +35,61 @@ struct ActiveSessionView: View {
     // MARK: - Active Session
 
     private var activeSessionContent: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             Spacer()
 
-            // Gym Name
+            // Gym Name + Live indicator
             if let session = sessionTracker.activeSession {
-                Text(session.gymName)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 8, height: 8)
+                        .scaleEffect(timerPulse ? 1.3 : 0.8)
+                        .opacity(timerPulse ? 1.0 : 0.5)
+                        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: timerPulse)
+                    Text(session.gymName)
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                }
+                .onAppear { timerPulse = true }
             }
 
-            // Timer Display
-            Text(DateFormatters.formatElapsed(sessionTracker.elapsedTime))
-                .font(.system(size: 72, weight: .bold, design: .monospaced))
-                .foregroundStyle(.green)
-                .contentTransition(.numericText())
+            // Timer Display — hero element
+            VStack(spacing: 0) {
+                Text(DateFormatters.formatElapsed(sessionTracker.elapsedTime))
+                    .font(.system(size: 80, weight: .heavy, design: .monospaced))
+                    .foregroundStyle(.green)
+                    .shadow(color: .green.opacity(0.3), radius: 12, x: 0, y: 0)
+                    .contentTransition(.numericText())
+            }
+            .padding(.vertical, 8)
 
             // Workout Type Picker
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 ForEach(WorkoutType.allCases) { type in
                     Button(action: {
-                        selectedWorkoutType = type
-                        sessionTracker.activeSession?.workoutType = type
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            selectedWorkoutType = type
+                            sessionTracker.activeSession?.workoutType = type
+                        }
                     }) {
-                        VStack(spacing: 4) {
+                        VStack(spacing: 6) {
                             Image(systemName: type.icon)
                                 .font(.title3)
+                                .symbolEffect(.bounce, value: selectedWorkoutType == type)
                             Text(type.rawValue)
-                                .font(.caption2)
+                                .font(.caption2.bold())
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 10)
                         .background(
-                            selectedWorkoutType == type
-                                ? Color.green.opacity(0.2)
-                                : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 10)
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(selectedWorkoutType == type ? Color.green.opacity(0.15) : Color(.systemGray6))
                         )
                         .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(selectedWorkoutType == type ? Color.green : Color.gray.opacity(0.3), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(selectedWorkoutType == type ? Color.green : Color.clear, lineWidth: 1.5)
                         )
                     }
                     .foregroundStyle(selectedWorkoutType == type ? .green : .secondary)
@@ -83,36 +98,37 @@ struct ActiveSessionView: View {
 
             // Check-in time & estimated calories
             if let session = sessionTracker.activeSession {
-                VStack(spacing: 4) {
-                    HStack {
-                        Image(systemName: "clock")
-                        Text("Checked in at \(DateFormatters.timeFormatter.string(from: session.checkInTime))")
+                HStack(spacing: 20) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.caption)
+                        Text(DateFormatters.timeFormatter.string(from: session.checkInTime))
+                            .font(.subheadline.weight(.medium))
                     }
-                    .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                    HStack {
+                    HStack(spacing: 4) {
                         Image(systemName: "flame.fill")
-                        Text("~\(session.estimatedCalories) cal burned")
+                            .font(.caption)
+                        Text("~\(session.estimatedCalories) cal")
+                            .font(.subheadline.weight(.medium))
                     }
-                    .font(.subheadline)
                     .foregroundStyle(.orange)
                 }
             }
 
             // Notes with emoji shortcuts
-            Button(action: { showNotesField.toggle() }) {
-                HStack {
-                    Image(systemName: "note.text")
+            Button(action: { withAnimation { showNotesField.toggle() } }) {
+                HStack(spacing: 4) {
+                    Image(systemName: showNotesField ? "note.text.badge.plus" : "note.text")
                     Text(showNotesField ? "Hide Notes" : "Add Notes")
                 }
-                .font(.subheadline)
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(.green)
             }
 
             if showNotesField {
                 VStack(spacing: 8) {
-                    // Emoji quick-add bar
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 8) {
                             ForEach(["💪", "🏋️", "🔥", "😤", "🎯", "⚡", "🦵", "💥", "🏃", "🧘"], id: \.self) { emoji in
@@ -122,7 +138,7 @@ struct ActiveSessionView: View {
                                 }
                                 .font(.title3)
                                 .padding(6)
-                                .background(Color.gray.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+                                .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 8))
                             }
                         }
                     }
@@ -134,75 +150,46 @@ struct ActiveSessionView: View {
                             sessionTracker.activeSession?.notes = newValue
                         }
                 }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
 
             Spacer()
 
-            // Check Out Button
-            Button(action: {
-                guard let session = sessionTracker.activeSession else { return }
-                session.notes = sessionNotes
-                session.workoutType = selectedWorkoutType
-                
-                // Capture session data before ending
-                let streak = sessionTracker.currentStreak(allSessions: completedSessions)
-                lastShareText = ShareManager.generateShareText(
-                    session: session,
-                    streak: streak,
-                    totalWorkouts: completedSessions.count + 1
-                )
-                
-                sessionTracker.endSession()
-                
-                // Check achievements after checkout
-                // Include the just-ended session (it's now in completedSessions after save)
-                // Use a slight delay to let SwiftData update the query
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 500_000_000)
-                    achievementManager.checkAchievements(
-                        sessions: completedSessions,
-                        currentStreak: streak
-                    )
-                    // Sync stats for complications/widgets
-                    sessionTracker.syncStatsToUserDefaults(allSessions: completedSessions)
-                }
-                
-                sessionNotes = ""
-                showNotesField = false
-                showShareSheet = true
-            }) {
-                HStack {
-                    Image(systemName: "xmark.circle.fill")
+            // Check Out Button — prominent, tactile feel
+            Button(action: handleCheckOut) {
+                HStack(spacing: 8) {
+                    Image(systemName: "stop.fill")
+                        .font(.body)
                     Text("Check Out")
+                        .font(.title3.bold())
                 }
-                .font(.title3.bold())
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
-                .padding()
-                .background(.red, in: RoundedRectangle(cornerRadius: 16))
+                .padding(.vertical, 18)
+                .background(
+                    LinearGradient(
+                        colors: [Color.red, Color.red.opacity(0.8)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    in: RoundedRectangle(cornerRadius: 18)
+                )
+                .shadow(color: .red.opacity(0.3), radius: 8, x: 0, y: 4)
             }
+            .buttonStyle(.plain)
 
             // Share after checkout
             if showShareSheet {
                 ShareLink(item: lastShareText) {
-                    HStack {
+                    HStack(spacing: 4) {
                         Image(systemName: "square.and.arrow.up")
                         Text("Share Workout")
                     }
                     .font(.subheadline.bold())
                     .foregroundStyle(.green)
                 }
+                .transition(.scale.combined(with: .opacity))
                 .padding(.bottom, 4)
-            }
-
-            // Status indicator
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(.green)
-                    .frame(width: 8, height: 8)
-                Text("Session Active")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -213,9 +200,17 @@ struct ActiveSessionView: View {
         VStack(spacing: 24) {
             Spacer()
 
-            Image(systemName: "figure.run.circle.fill")
-                .font(.system(size: 80))
-                .foregroundStyle(.green)
+            // Hero icon with subtle glow
+            ZStack {
+                Circle()
+                    .fill(.green.opacity(0.1))
+                    .frame(width: 120, height: 120)
+                    .blur(radius: 20)
+                Image(systemName: "figure.run.circle.fill")
+                    .font(.system(size: 80))
+                    .foregroundStyle(.green)
+                    .symbolEffect(.pulse, options: .repeating)
+            }
 
             VStack(spacing: 8) {
                 Text("Ready to Work Out?")
@@ -226,6 +221,7 @@ struct ActiveSessionView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
+                    .padding(.horizontal)
             }
 
             // Motivational Quote
@@ -233,7 +229,7 @@ struct ActiveSessionView: View {
                 .font(.footnote.italic())
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal)
+                .padding(.horizontal, 24)
 
             // Share last workout if available
             if let lastSession = completedSessions.first {
@@ -245,7 +241,7 @@ struct ActiveSessionView: View {
                         totalWorkouts: completedSessions.count
                     )
                 ) {
-                    HStack {
+                    HStack(spacing: 4) {
                         Image(systemName: "square.and.arrow.up")
                         Text("Share Last Workout")
                     }
@@ -259,40 +255,13 @@ struct ActiveSessionView: View {
             // Manual Check In
             VStack(spacing: 12) {
                 if gyms.isEmpty {
-                    // No gyms configured — show quick start with generic name
-                    Button(action: {
-                        sessionTracker.startSession(gymName: "Quick Session")
-                        showShareSheet = false
-                    }) {
-                        HStack {
-                            Image(systemName: "play.circle.fill")
-                            Text("Quick Start")
-                        }
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(.green, in: RoundedRectangle(cornerRadius: 16))
-                    }
+                    startButton(label: "Quick Start", gymName: "Quick Session")
                     
                     Text("Add a gym in Settings for auto-detection")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else if let gym = gyms.first {
-                    Button(action: {
-                        sessionTracker.startSession(gymName: gym.name)
-                        showShareSheet = false
-                    }) {
-                        HStack {
-                            Image(systemName: "play.circle.fill")
-                            Text("Check In to \(gym.name)")
-                        }
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(.green, in: RoundedRectangle(cornerRadius: 16))
-                    }
+                    startButton(label: "Check In to \(gym.name)", gymName: gym.name)
                 }
 
                 if gyms.count > 1 {
@@ -305,7 +274,7 @@ struct ActiveSessionView: View {
                         }
                     } label: {
                         Text("Choose another gym")
-                            .font(.subheadline)
+                            .font(.subheadline.weight(.medium))
                             .foregroundStyle(.green)
                     }
                 }
@@ -320,6 +289,65 @@ struct ActiveSessionView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func startButton(label: String, gymName: String) -> some View {
+        Button(action: {
+            sessionTracker.startSession(gymName: gymName)
+            showShareSheet = false
+        }) {
+            HStack(spacing: 8) {
+                Image(systemName: "play.fill")
+                    .font(.body)
+                Text(label)
+                    .font(.title3.bold())
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 18)
+            .background(
+                LinearGradient(
+                    colors: [Color.green, Color.green.opacity(0.8)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ),
+                in: RoundedRectangle(cornerRadius: 18)
+            )
+            .shadow(color: .green.opacity(0.3), radius: 8, x: 0, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func handleCheckOut() {
+        guard let session = sessionTracker.activeSession else { return }
+        session.notes = sessionNotes
+        session.workoutType = selectedWorkoutType
+        
+        let streak = sessionTracker.currentStreak(allSessions: completedSessions)
+        lastShareText = ShareManager.generateShareText(
+            session: session,
+            streak: streak,
+            totalWorkouts: completedSessions.count + 1
+        )
+        
+        sessionTracker.endSession()
+        
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            achievementManager.checkAchievements(
+                sessions: completedSessions,
+                currentStreak: streak
+            )
+            sessionTracker.syncStatsToUserDefaults(allSessions: completedSessions)
+        }
+        
+        sessionNotes = ""
+        showNotesField = false
+        withAnimation(.spring(response: 0.4)) {
+            showShareSheet = true
         }
     }
 }

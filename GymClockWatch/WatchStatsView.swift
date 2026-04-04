@@ -38,16 +38,10 @@ struct WatchStatsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 10) {
-                    // Streak display
                     streakCard
-                    
-                    // Weekly progress ring
                     weeklyProgressCard
-                    
-                    // Month stats
                     monthStatsCard
                     
-                    // Best session
                     if let best = bestSession {
                         bestSessionCard(best)
                     }
@@ -62,17 +56,14 @@ struct WatchStatsView: View {
     
     private var streakCard: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Current Streak")
-                    .font(.system(size: 9))
+            VStack(alignment: .leading, spacing: 3) {
+                Text("STREAK")
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
                 
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text("🔥")
-                        .font(.title3)
                     Text("\(streak)")
-                        .font(.system(.title2, design: .rounded).bold())
+                        .font(.system(.title, design: .rounded).bold())
                         .foregroundStyle(streak > 0 ? .orange : .secondary)
                     Text(streak == 1 ? "day" : "days")
                         .font(.caption2)
@@ -82,13 +73,12 @@ struct WatchStatsView: View {
             
             Spacer()
             
-            // Streak flame visualization
+            // Flame stack
             if streak > 0 {
-                VStack(spacing: 0) {
-                    ForEach(0..<min(streak, 5), id: \.self) { i in
+                HStack(spacing: -4) {
+                    ForEach(0..<min(streak, 5), id: \.self) { _ in
                         Text("🔥")
-                            .font(.system(size: CGFloat(8 + i * 2)))
-                            .opacity(Double(i + 1) / 5.0)
+                            .font(.system(size: 14))
                     }
                 }
             }
@@ -105,49 +95,48 @@ struct WatchStatsView: View {
     
     private var weeklyProgressCard: some View {
         VStack(spacing: 6) {
-            Text("This Week")
-                .font(.system(size: 9))
+            Text("THIS WEEK")
+                .font(.system(size: 9, weight: .bold))
                 .foregroundStyle(.secondary)
-                .textCase(.uppercase)
             
             ZStack {
-                // Background arc
+                // Background ring
                 Circle()
-                    .stroke(.gray.opacity(0.2), lineWidth: 6)
-                    .frame(width: 60, height: 60)
+                    .stroke(Color(.darkGray), lineWidth: 7)
+                    .frame(width: 64, height: 64)
                 
-                // Progress arc
+                // Progress ring
                 Circle()
                     .trim(from: 0, to: weekProgress)
                     .stroke(
-                        weekProgress >= 1.0 ? Color.green : Color.blue,
-                        style: StrokeStyle(lineWidth: 6, lineCap: .round)
+                        weekProgress >= 1.0
+                            ? LinearGradient(colors: [.green, .green.opacity(0.7)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                            : LinearGradient(colors: [.blue, .cyan], startPoint: .topLeading, endPoint: .bottomTrailing),
+                        style: StrokeStyle(lineWidth: 7, lineCap: .round)
                     )
-                    .frame(width: 60, height: 60)
+                    .frame(width: 64, height: 64)
                     .rotationEffect(.degrees(-90))
                     .animation(.spring(response: 0.6), value: weekProgress)
                 
-                // Center text
                 VStack(spacing: 0) {
-                    Text("\(weekSessions.count)/\(weeklyGoal)")
-                        .font(.system(.caption, design: .rounded).bold())
+                    Text("\(weekSessions.count)")
+                        .font(.system(.title3, design: .rounded).bold())
                         .foregroundStyle(weekProgress >= 1.0 ? .green : .primary)
-                    if weekProgress >= 1.0 {
-                        Text("✅")
-                            .font(.system(size: 10))
-                    }
+                    Text("of \(weeklyGoal)")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
                 }
             }
             
             // Time this week
             Text(DateFormatters.formatDuration(sessionTracker.totalTimeThisWeek(allSessions: sessions)))
-                .font(.system(.caption2, design: .monospaced))
+                .font(.system(.caption2, design: .monospaced).bold())
                 .foregroundStyle(.secondary)
         }
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 10)
-                .fill(.blue.opacity(0.1))
+                .fill(.blue.opacity(0.08))
                 .strokeBorder(.blue.opacity(0.2), lineWidth: 1)
         )
     }
@@ -155,65 +144,61 @@ struct WatchStatsView: View {
     // MARK: - Month Stats Card
     
     private var monthStatsCard: some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 2) {
-                Text("\(monthSessions.count)")
-                    .font(.system(.body, design: .rounded).bold())
-                    .foregroundStyle(.green)
-                Text("sessions")
-                    .font(.system(size: 8))
+        VStack(spacing: 6) {
+            HStack {
+                Text("THIS MONTH")
+                    .font(.system(size: 8, weight: .bold))
                     .foregroundStyle(.secondary)
+                Spacer()
             }
-            .frame(maxWidth: .infinity)
             
-            Rectangle()
-                .fill(.gray.opacity(0.3))
-                .frame(width: 1, height: 24)
-            
-            VStack(spacing: 2) {
-                let totalTime = monthSessions.reduce(0) { $0 + $1.duration }
-                Text(DateFormatters.formatDuration(totalTime))
-                    .font(.system(.caption, design: .rounded).bold())
-                    .foregroundStyle(.green)
-                Text("total")
-                    .font(.system(size: 8))
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 0) {
+                VStack(spacing: 2) {
+                    Text("\(monthSessions.count)")
+                        .font(.system(.body, design: .rounded).bold())
+                        .foregroundStyle(.green)
+                    Text("sessions")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                
+                Rectangle()
+                    .fill(.gray.opacity(0.3))
+                    .frame(width: 1, height: 24)
+                
+                VStack(spacing: 2) {
+                    let totalTime = monthSessions.reduce(0) { $0 + $1.duration }
+                    Text(DateFormatters.formatDuration(totalTime))
+                        .font(.system(.caption, design: .rounded).bold())
+                        .foregroundStyle(.green)
+                    Text("total")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                
+                Rectangle()
+                    .fill(.gray.opacity(0.3))
+                    .frame(width: 1, height: 24)
+                
+                VStack(spacing: 2) {
+                    let totalCal = monthSessions.reduce(0) { $0 + ($1.calories > 0 ? $1.calories : $1.estimatedCalories) }
+                    Text("\(totalCal)")
+                        .font(.system(.caption, design: .rounded).bold())
+                        .foregroundStyle(.orange)
+                    Text("cal")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: .infinity)
-            
-            Rectangle()
-                .fill(.gray.opacity(0.3))
-                .frame(width: 1, height: 24)
-            
-            VStack(spacing: 2) {
-                let totalCal = monthSessions.reduce(0) { $0 + ($1.calories > 0 ? $1.calories : $1.estimatedCalories) }
-                Text("\(totalCal)")
-                    .font(.system(.caption, design: .rounded).bold())
-                    .foregroundStyle(.orange)
-                Text("cal")
-                    .font(.system(size: 8))
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
         }
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(.green.opacity(0.05))
-        )
-        .overlay(
-            VStack {
-                HStack {
-                    Text("This Month")
-                        .font(.system(size: 8))
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                        .padding(.leading, 8)
-                        .padding(.top, 2)
-                    Spacer()
-                }
-                Spacer()
-            }
+                .strokeBorder(.green.opacity(0.15), lineWidth: 1)
         )
     }
     
@@ -221,13 +206,12 @@ struct WatchStatsView: View {
     
     private func bestSessionCard(_ session: WorkoutSession) -> some View {
         VStack(spacing: 4) {
-            HStack {
+            HStack(spacing: 4) {
                 Text("🏆")
                     .font(.caption)
-                Text("Personal Best")
-                    .font(.system(size: 9).bold())
+                Text("PERSONAL BEST")
+                    .font(.system(size: 9, weight: .heavy))
                     .foregroundStyle(.yellow)
-                    .textCase(.uppercase)
                 Spacer()
             }
             

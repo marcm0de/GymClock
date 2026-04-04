@@ -34,91 +34,76 @@ struct WatchActiveSessionView: View {
     
     private var activeView: some View {
         ScrollView {
-            VStack(spacing: 6) {
-                // Workout type badge
+            VStack(spacing: 4) {
+                // Workout type + gym badge
                 if let session = sessionTracker.activeSession {
                     HStack(spacing: 4) {
                         Image(systemName: session.workoutType.icon)
-                            .font(.caption2)
+                            .font(.system(size: 10))
                         Text(session.gymName)
-                            .font(.caption2)
+                            .font(.system(size: 11, weight: .medium))
                     }
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.green.opacity(0.8))
                     .padding(.top, 2)
                 }
                 
-                // HERO: Large monospaced timer
+                // HERO: Maximum-size monospaced timer
                 Text(DateFormatters.formatElapsed(sessionTracker.elapsedTime))
-                    .font(.system(size: 64, weight: .heavy, design: .monospaced))
+                    .font(.system(size: 72, weight: .heavy, design: .monospaced))
                     .foregroundStyle(Color.green)
-                    .minimumScaleFactor(0.4)
+                    .minimumScaleFactor(0.35)
                     .lineLimit(1)
-                    .shadow(color: .green.opacity(0.3), radius: 8, x: 0, y: 0)
-                    .scaleEffect(animateTimer ? 1.0 : 0.95)
-                    .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: animateTimer)
-                    .onAppear { animateTimer = true }
+                    .shadow(color: .green.opacity(0.4), radius: 10, x: 0, y: 0)
+                    .padding(.vertical, 2)
                 
-                // Heart rate + calories row
-                HStack(spacing: 16) {
-                    // Heart rate placeholder
-                    HStack(spacing: 3) {
-                        Image(systemName: "heart.fill")
-                            .foregroundStyle(.red)
-                            .font(.caption)
-                            .symbolEffect(.pulse)
-                        Text("--")
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.red.opacity(0.7))
-                        Text("bpm")
-                            .font(.system(size: 8))
-                            .foregroundStyle(.secondary)
-                    }
-                    
-                    // Calorie counter
+                // Compact info row: calories + time
+                HStack(spacing: 14) {
                     if let session = sessionTracker.activeSession {
+                        // Calorie counter
                         HStack(spacing: 3) {
                             Image(systemName: "flame.fill")
                                 .foregroundStyle(.orange)
-                                .font(.caption)
+                                .font(.system(size: 11))
                             Text("\(session.estimatedCalories)")
-                                .font(.system(.caption, design: .monospaced))
+                                .font(.system(.caption, design: .monospaced).bold())
                                 .foregroundStyle(.orange)
                                 .contentTransition(.numericText(value: Double(session.estimatedCalories)))
-                            Text("cal")
-                                .font(.system(size: 8))
+                        }
+                        
+                        // Start time
+                        HStack(spacing: 3) {
+                            Image(systemName: "clock.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                            Text(DateFormatters.timeFormatter.string(from: session.checkInTime))
+                                .font(.system(size: 10))
                                 .foregroundStyle(.secondary)
                         }
                     }
                 }
                 
-                // Duration since
-                if let session = sessionTracker.activeSession {
-                    Text("Started \(DateFormatters.timeFormatter.string(from: session.checkInTime))")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
+                Spacer(minLength: 10)
                 
-                Spacer(minLength: 8)
-                
-                // Stop button
+                // Stop button — large, clear target
                 Button(action: {
                     HapticManager.shared.workoutEnded()
                     sessionTracker.endSession()
                 }) {
                     HStack(spacing: 6) {
-                        Image(systemName: "stop.circle.fill")
-                            .font(.body)
+                        Image(systemName: "stop.fill")
+                            .font(.caption)
                         Text("End Workout")
                             .font(.caption.bold())
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 10)
                 }
                 .tint(.red)
                 .clipShape(Capsule())
             }
             .padding(.horizontal, 4)
         }
+        .onAppear { animateTimer = true }
     }
     
     // MARK: - Idle View
@@ -126,55 +111,54 @@ struct WatchActiveSessionView: View {
     private var idleView: some View {
         ScrollView {
             VStack(spacing: 8) {
-                // App icon
-                Image(systemName: "figure.strengthtraining.traditional")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.green)
-                    .padding(.top, 4)
-                
-                Text("GymClock")
-                    .font(.headline.bold())
-                    .foregroundStyle(.green)
-                
-                // Workout type selector with digital crown
-                VStack(spacing: 4) {
-                    Text("Workout Type")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
+                // Compact header
+                VStack(spacing: 2) {
+                    Image(systemName: "figure.strengthtraining.traditional")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.green)
+                        .padding(.top, 4)
                     
-                    HStack(spacing: 12) {
-                        ForEach(Array(workoutTypes.enumerated()), id: \.element.id) { index, type in
-                            VStack(spacing: 2) {
-                                Image(systemName: type.icon)
-                                    .font(.system(size: 18))
-                                    .foregroundStyle(index == Int(selectedWorkoutIndex) % workoutTypes.count ? .green : .gray)
-                                    .scaleEffect(index == Int(selectedWorkoutIndex) % workoutTypes.count ? 1.2 : 0.9)
-                                    .animation(.spring(response: 0.3), value: selectedWorkoutIndex)
-                                
-                                if index == Int(selectedWorkoutIndex) % workoutTypes.count {
+                    Text("GymClock")
+                        .font(.system(.subheadline, design: .rounded).bold())
+                        .foregroundStyle(.green)
+                }
+                
+                // Workout type selector
+                HStack(spacing: 10) {
+                    ForEach(Array(workoutTypes.enumerated()), id: \.element.id) { index, type in
+                        let isSelected = index == Int(selectedWorkoutIndex) % workoutTypes.count
+                        VStack(spacing: 3) {
+                            ZStack {
+                                if isSelected {
                                     Circle()
-                                        .fill(.green)
-                                        .frame(width: 4, height: 4)
+                                        .fill(.green.opacity(0.15))
+                                        .frame(width: 28, height: 28)
                                 }
+                                Image(systemName: type.icon)
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(isSelected ? .green : .gray)
                             }
-                            .onTapGesture {
-                                selectedWorkoutIndex = Double(index)
-                                HapticManager.shared.crownDetent()
-                            }
+                            
+                            Text(type.rawValue)
+                                .font(.system(size: 7, weight: isSelected ? .bold : .regular))
+                                .foregroundStyle(isSelected ? .green : .secondary)
+                        }
+                        .onTapGesture {
+                            selectedWorkoutIndex = Double(index)
+                            HapticManager.shared.crownDetent()
                         }
                     }
                 }
                 .padding(.vertical, 4)
                 
-                // Quick stats row
+                // Quick stats
                 let weekSessions = sessionTracker.sessionsThisWeek(allSessions: completedSessions)
                 let streak = sessionTracker.currentStreak(allSessions: completedSessions)
                 
-                HStack(spacing: 12) {
+                HStack(spacing: 14) {
                     VStack(spacing: 1) {
                         Text("\(weekSessions.count)")
-                            .font(.caption.bold())
+                            .font(.system(.caption, design: .rounded).bold())
                             .foregroundStyle(.green)
                         Text("this wk")
                             .font(.system(size: 8))
@@ -183,7 +167,7 @@ struct WatchActiveSessionView: View {
                     
                     VStack(spacing: 1) {
                         Text("🔥\(streak)")
-                            .font(.caption.bold())
+                            .font(.system(.caption, design: .rounded).bold())
                         Text("streak")
                             .font(.system(size: 8))
                             .foregroundStyle(.secondary)
@@ -195,22 +179,20 @@ struct WatchActiveSessionView: View {
                     HapticManager.shared.workoutStarted()
                     let gymName = gyms.first?.name ?? "Quick Session"
                     sessionTracker.startSession(gymName: gymName)
-                    // Set selected workout type
                     sessionTracker.activeSession?.workoutType = currentWorkoutType
                 }) {
                     HStack(spacing: 6) {
-                        Image(systemName: "play.circle.fill")
-                            .font(.body)
+                        Image(systemName: "play.fill")
+                            .font(.caption)
                         Text(gyms.first != nil ? "Start Workout" : "Quick Start")
                             .font(.caption.bold())
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 10)
                 }
                 .tint(.green)
                 .clipShape(Capsule())
                 
-                // Show gym selector if multiple gyms
                 if gyms.count > 1 {
                     Menu {
                         ForEach(gyms) { gym in
