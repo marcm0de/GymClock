@@ -34,11 +34,13 @@ final class GymLocation {
         self.createdAt = createdAt
     }
 
-    static var planetFitness: GymLocation {
+    /// Example gym used when no locations have been configured yet.
+    /// Uses a neutral midpoint; the user is expected to add their own gym via Settings.
+    static var exampleGym: GymLocation {
         GymLocation(
-            name: "Planet Fitness",
-            latitude: 40.7580,
-            longitude: -73.9855,
+            name: "My Gym",
+            latitude: 0,
+            longitude: 0,
             radius: 100,
             isDefault: true
         )

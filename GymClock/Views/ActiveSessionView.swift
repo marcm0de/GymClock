@@ -163,6 +163,8 @@ struct ActiveSessionView: View {
                         sessions: completedSessions,
                         currentStreak: streak
                     )
+                    // Sync stats for complications/widgets
+                    sessionTracker.syncStatsToUserDefaults(allSessions: completedSessions)
                 }
                 
                 sessionNotes = ""

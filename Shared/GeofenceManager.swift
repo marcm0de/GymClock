@@ -23,8 +23,11 @@ final class GeofenceManager: NSObject, ObservableObject, CLLocationManagerDelega
         super.init()
         locationManager.delegate = self
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        #if os(iOS)
+        // Background location updates require UIBackgroundModes location entitlement
         locationManager.allowsBackgroundLocationUpdates = true
         locationManager.pausesLocationUpdatesAutomatically = false
+        #endif
         authorizationStatus = locationManager.authorizationStatus
     }
 

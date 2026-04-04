@@ -193,13 +193,16 @@ struct StatsView: View {
         let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date()
         let weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-        return (0..<7).map { dayOffset in
-            let date = calendar.date(byAdding: .day, value: dayOffset, to: startOfWeek)!
+        return (0..<7).compactMap { dayOffset in
+            guard let date = calendar.date(byAdding: .day, value: dayOffset, to: startOfWeek) else {
+                return nil
+            }
             let daySessions = sessions.filter { calendar.isDate($0.checkInTime, inSameDayAs: date) }
             let totalMinutes = daySessions.reduce(0.0) { $0 + $1.duration } / 60.0
+            let weekdayIndex = calendar.component(.weekday, from: date) - 1
 
             return DayData(
-                day: weekDays[calendar.component(.weekday, from: date) - 1],
+                day: weekDays[weekdayIndex],
                 minutes: totalMinutes
             )
         }

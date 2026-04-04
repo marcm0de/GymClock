@@ -6,6 +6,7 @@ struct GymClockApp: App {
     @StateObject private var sessionTracker = SessionTracker()
     @StateObject private var achievementManager = AchievementManager()
     @ObservedObject private var geofenceManager = GeofenceManager.shared
+    @Environment(\.scenePhase) private var scenePhase
 
     let sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -44,6 +45,20 @@ struct GymClockApp: App {
                 }
         }
         .modelContainer(sharedModelContainer)
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .active:
+                // Refresh elapsed time when returning from background
+                if let session = sessionTracker.activeSession {
+                    sessionTracker.elapsedTime = session.duration
+                }
+            case .background:
+                // Save state before going to background
+                try? sharedModelContainer.mainContext.save()
+            default:
+                break
+            }
+        }
     }
 
     private func seedDefaultGymIfNeeded() {
@@ -52,7 +67,9 @@ struct GymClockApp: App {
         let count = (try? context.fetchCount(descriptor)) ?? 0
 
         if count == 0 {
-            context.insert(GymLocation.planetFitness)
+            // Seed with a placeholder gym so the user has something to start with.
+            // They should update it in Settings with their real gym location.
+            context.insert(GymLocation.exampleGym)
             try? context.save()
         }
     }

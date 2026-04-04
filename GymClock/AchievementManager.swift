@@ -249,7 +249,7 @@ final class AchievementManager: ObservableObject {
             calendar.dateInterval(of: .weekOfYear, for: session.checkInTime)?.start ?? session.checkInTime
         }
 
-        for (weekStart, weekSessions) in grouped {
+        for (_, weekSessions) in grouped {
             let uniqueDays = Set(weekSessions.map { calendar.startOfDay(for: $0.checkInTime) })
             updateProgress("perfect_week", current: uniqueDays.count, target: 7)
             if uniqueDays.count >= 7 {

@@ -36,6 +36,7 @@ final class SessionTracker: ObservableObject {
 
         startTimer()
         startHealthKitWorkout()
+        syncSessionStateToUserDefaults(active: true, startTime: session.checkInTime)
     }
 
     func endSession() {
@@ -54,6 +55,7 @@ final class SessionTracker: ObservableObject {
         if healthKitAuthorized {
             endHealthKitWorkout(duration: finalDuration, calories: finalCalories)
         }
+        syncSessionStateToUserDefaults(active: false, startTime: nil)
     }
 
     func manualCheckIn(gymName: String) {
@@ -200,6 +202,31 @@ final class SessionTracker: ObservableObject {
                 print("Failed to save workout to HealthKit: \(error.localizedDescription)")
             }
         }
+    }
+
+    // MARK: - Complication Sync
+
+    /// Keep UserDefaults in sync so complications/widgets can read current state
+    private func syncSessionStateToUserDefaults(active: Bool, startTime: Date?) {
+        let defaults = UserDefaults.standard
+        defaults.set(active, forKey: "gymclock_session_active")
+        defaults.set(startTime?.timeIntervalSince1970 ?? 0, forKey: "gymclock_session_start")
+    }
+
+    /// Write aggregate stats to UserDefaults for complication consumption
+    func syncStatsToUserDefaults(allSessions: [WorkoutSession]) {
+        let defaults = UserDefaults.standard
+        let streak = currentStreak(allSessions: allSessions)
+        let weekSessions = sessionsThisWeek(allSessions: allSessions)
+        let weeklyTotal = totalTimeThisWeek(allSessions: allSessions)
+        let calendar = Calendar.current
+        let todaySessions = allSessions.filter { calendar.isDateInToday($0.checkInTime) && !$0.isActive }
+        let todaysCalories = todaySessions.reduce(0) { $0 + ($1.calories > 0 ? $1.calories : $1.estimatedCalories) }
+
+        defaults.set(streak, forKey: "gymclock_streak")
+        defaults.set(weekSessions.count, forKey: "gymclock_week_sessions")
+        defaults.set(weeklyTotal, forKey: "gymclock_weekly_total")
+        defaults.set(todaysCalories, forKey: "gymclock_todays_calories")
     }
 
     // MARK: - Statistics
